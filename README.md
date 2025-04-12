@@ -1,4 +1,4 @@
-# Prediksi Harga Rumah - Data Mining
+# Implementasi Model Hybrid Fuzzy Logic dan Random Forest untuk Prediksi Harga Rumah di Kota Yogyakarta
 
 ## Deskripsi
 

@@ -6,6 +6,10 @@ Repositori ini berisi script Python untuk **membersihkan dan memproses data ment
 
 Menyiapkan data real estate yang bersih dan terstruktur sebagai input untuk model prediksi harga rumah berbasis logika fuzzy atau machine learning.
 
+## Dataset Cloud
+
+(https://storage.googleapis.com/darmot-storage/docs/houses.csv)[https://storage.googleapis.com/darmot-storage/docs/houses.csv]
+
 ## 📂 Struktur Folder
 
 ```
