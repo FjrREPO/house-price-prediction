@@ -36,9 +36,9 @@ def load_best_params():
         return json.load(f)
 
 
-st.sidebar.title("Model Explorer")
+st.sidebar.title("Eksplorasi Model")
 section = st.sidebar.radio(
-    "Go to", ["Model Info", "Feature Importance", "Model Plots", "Make Prediction"]
+    "Pilih Menu", ["Info Model", "Pentingnya Fitur", "Visualisasi Model"]
 )
 
 
@@ -49,67 +49,34 @@ feature_importance_df = load_feature_importance()
 best_params = load_best_params()
 
 
-if section == "Model Info":
-    st.title("🏠 House Price Model Info")
-    st.subheader("Model Path")
+if section == "Info Model":
+    st.title("🏠 Info Model Harga Rumah")
+    st.subheader("Path Model")
     st.code(MODEL_PATH)
 
-    st.subheader("Best Parameters")
+    st.subheader("Parameter Terbaik")
     st.json(best_params)
 
-    st.subheader("Features Used")
+    st.subheader("Fitur yang Digunakan")
     st.write(feature_names)
 
 
-elif section == "Feature Importance":
-    st.title("📊 Feature Importance")
+elif section == "Pentingnya Fitur":
+    st.title("📊  Fitur Penting")
     st.dataframe(feature_importance_df)
 
-    st.subheader("Top 15 Feature Importances")
+    st.subheader("15 Fitur dengan Importance Tertinggi")
     st.image(os.path.join(EVAL_DIR, "feature_importance.png"))
 
 
-elif section == "Model Plots":
-    st.title("📈 Model Visualizations")
+elif section == "Visualisasi Model":
+    st.title("📈 Visualisasi Model")
 
-    st.subheader("Actual vs Predicted")
+    st.subheader("Aktual vs Prediksi")
     st.image(os.path.join(EVAL_DIR, "actual_vs_predicted.png"))
 
-    st.subheader("Residuals Plot")
+    st.subheader("Plot Residual")
     st.image(os.path.join(EVAL_DIR, "residuals.png"))
 
-    st.subheader("Residual Distribution")
+    st.subheader("Distribusi Residual")
     st.image(os.path.join(EVAL_DIR, "residual_distribution.png"))
-
-
-elif section == "Make Prediction":
-    st.title("🔍 Predict House Price")
-    st.subheader("Input Feature Values")
-
-    input_data = {}
-    city_columns = [f for f in feature_names if f.startswith("city_")]
-
-    for feature in feature_names:
-        if feature.startswith("city_"):
-            continue
-        input_data[feature] = st.number_input(f"{feature}", value=0, step=1)
-
-    selected_city = st.selectbox(
-        "City", options=[col.replace("city_", "") for col in city_columns]
-    )
-    input_data["city"] = selected_city
-
-    if st.button("Predict"):
-        df = pd.DataFrame(columns=feature_names)
-        df.loc[0] = 0
-
-        for feature, value in input_data.items():
-            if feature in feature_names:
-                df.loc[0, feature] = value
-            elif feature == "city":
-                city_col = "city_" + value
-                if city_col in feature_names:
-                    df.loc[0, city_col] = 1
-
-        prediction = model.predict(df)[0]
-        st.success(f"Estimated House Price: Rp {prediction:,.0f}")
