@@ -1,0 +1,75 @@
+Feature,Importance
+building_area,0.7997054487710061
+land_area,0.10685127648898966
+bathroom,0.03587544666515025
+"city_Maguwoharjo, Yogyakarta",0.006855074009088015
+bedroom,0.006290701333491245
+"city_Sleman, Yogyakarta",0.005633231953167988
+"city_Mantrijeron, Yogyakarta",0.004846834033303931
+"city_Wirobrajan, Yogyakarta",0.002623032119482594
+listing_recency_hours,0.0025811174885415214
+"city_Umbulharjo, Yogyakarta",0.0025666114003365737
+"city_Tegalrejo, Yogyakarta",0.0025044398399759623
+floors,0.0019335970986045152
+"city_Pengasih, Kulon Progo",0.0017689316024323005
+"city_Caturtunggal, Yogyakarta",0.0015377233144311488
+"city_Banguntapan, Bantul",0.0014897107551051993
+"city_Kota Baru, Yogyakarta",0.0014821327925897316
+carport,0.001443192218634069
+"city_Kasihan, Bantul",0.001381254298146295
+"city_Ngemplak, Sleman",0.001305311053667715
+"city_Bantul, Yogyakarta",0.0010278344846845592
+"city_Ngaglik, Sleman",0.0008140965535974176
+is_furnished,0.0007075485273727455
+"city_Depok, Sleman",0.0006702829530825683
+"city_Karangmojo, Gunung Kidul",0.0005972269110157137
+"city_Kaliurang, Yogyakarta",0.0005966116791665534
+"city_Mlati, Sleman",0.0005682687627581937
+"city_Wonosari, Gunung Kidul",0.0005602266265380093
+"city_Bantul, Bantul",0.0005319346976087564
+near_shops,0.0005129001249037012
+near_school,0.0004972652893935288
+"city_Sedayu, Bantul",0.0004781745962752048
+ready_to_live,0.00045531019427300274
+"city_Sewon, Bantul",0.0004054475588461067
+near_healthcare,0.00037753285828270676
+"city_Godean, Sleman",0.00029178239236690376
+"city_Gondokusuman, Yogyakarta",0.0002904830656483645
+"city_Gamping, Sleman",0.0002695155004030626
+"city_Kalasan, Sleman",0.00022149741373411074
+"city_Kotagede, Yogyakarta",0.00021977253647531688
+"city_Condong Catur, Sleman",0.0001658825740062257
+"city_Purwomartani , Sleman",0.00015569300125113924
+"city_Sleman, Sleman",0.00013578168887269776
+"city_Jetis, Bantul",0.0001239072407377078
+"city_Playen, Gunung Kidul",7.732221651555671e-05
+"city_Seyegan, Sleman",6.747232809039492e-05
+has_pool,6.198837004841393e-05
+is_premier,5.527693923295523e-05
+"city_Pajangan, Bantul",4.6235238067479955e-05
+"city_Kaliurang, Sleman",4.3144917873344244e-05
+"city_Mergangsan, Yogyakarta",4.070471319141246e-05
+"city_Kulonprogo, Kulon Progo",3.748888007619386e-05
+"city_Plered, Bantul",3.634393710288747e-05
+"city_Berbah, Sleman",2.993783206419982e-05
+"city_Purwomartani, Yogyakarta",2.924908498123612e-05
+"city_Caturtunggal, Sleman",2.9042563818840927e-05
+"city_Pogung, Yogyakarta",2.2869230668190634e-05
+"city_Piyungan, Bantul",1.8740539196634282e-05
+"city_Imogiri , Bantul",1.5069869285745336e-05
+"city_Sentolo, Kulon Progo",6.839916627882679e-06
+"city_Prambanan, Sleman",6.398284781728498e-06
+"city_Pakualaman, Yogyakarta",5.919705859481228e-06
+"city_Patuk, Gunung Kidul",4.411159004400892e-06
+"city_Cebongan, Sleman",4.1621975886950954e-06
+"city_Kraton, Yogyakarta",4.136253778409975e-06
+"city_Jombor, Sleman",2.0688687435071635e-06
+"city_Danurejan, Yogyakarta",1.54033819101568e-06
+"city_Turi, Sleman",1.2251538378241242e-06
+"city_Tempel, Sleman",1.144408317841153e-06
+"city_Pakem, Sleman",6.749751946861785e-07
+"city_Wates, Kulon Progo",2.8668786120086365e-07
+"city_Minomartani , Sleman",2.60922560637882e-07
+"city_Jetis, Yogyakarta",0.0
+"city_Gondomanan, Yogyakarta",0.0
+"city_Ngampilan, Yogyakarta",0.0
