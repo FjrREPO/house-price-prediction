@@ -4,6 +4,12 @@ import joblib
 import json
 import os
 
+st.set_page_config(
+    page_title="Model",
+    page_icon="🚧",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 MODEL_DIR = os.path.join(current_dir, "../model")
