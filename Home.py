@@ -7,7 +7,7 @@ import os
 st.set_page_config(page_title="Home", page_icon="🏠", layout="wide")
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-MODEL_DIR = os.path.join(current_dir, "../model")
+MODEL_DIR = os.path.join(current_dir, "model")
 EVAL_DIR = os.path.join(MODEL_DIR, "evaluation")
 MODEL_PATH = os.path.join(MODEL_DIR, "model.joblib")
 PREDICTION_INFO_PATH = os.path.join(EVAL_DIR, "prediction_info.json")
