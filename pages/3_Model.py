@@ -57,9 +57,6 @@ best_params = load_best_params()
 
 if section == "Info Model":
     st.title("🏠 Info Model Harga Rumah")
-    st.subheader("Path Model")
-    st.code(MODEL_PATH)
-
     st.subheader("Parameter Terbaik")
     st.json(best_params)
 
