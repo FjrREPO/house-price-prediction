@@ -1,81 +1,153 @@
 import streamlit as st
-import pandas as pd
-import joblib
-import json
-import os
 
 st.set_page_config(page_title="Home", page_icon="🏠", layout="wide")
 
-current_dir = os.path.dirname(os.path.abspath(__file__))
-MODEL_DIR = os.path.join(current_dir, "model")
-EVAL_DIR = os.path.join(MODEL_DIR, "evaluation")
-MODEL_PATH = os.path.join(MODEL_DIR, "model.joblib")
-PREDICTION_INFO_PATH = os.path.join(EVAL_DIR, "prediction_info.json")
-FEATURE_IMPORTANCE_PATH = os.path.join(EVAL_DIR, "feature_importance.csv")
-BEST_PARAMS_PATH = os.path.join(EVAL_DIR, "best_params.json")
-
-
-@st.cache_data
-def load_model():
-    return joblib.load(MODEL_PATH)
-
-
-@st.cache_data
-def load_feature_info():
-    with open(PREDICTION_INFO_PATH, "r") as f:
-        return json.load(f)
-
-
-@st.cache_data
-def load_feature_importance():
-    return pd.read_csv(FEATURE_IMPORTANCE_PATH)
-
-
-@st.cache_data
-def load_best_params():
-    with open(BEST_PARAMS_PATH, "r") as f:
-        return json.load(f)
-
-
-model = load_model()
-feature_info = load_feature_info()
-feature_names = feature_info["features"]
-
-
-st.title("🏠 Prediksi Harga Rumah")
 st.markdown(
     """
-Halo, selamat datang di aplikasi prediksi harga rumah. Masukkan data yang diperlukan untuk memprediksi harga rumah berdasarkan fitur-fitur yang ada.
+<style>
+    .main-header {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #1E3A8A;
+        margin-bottom: 1rem;
+    }
+    .sub-header {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #1E3A8A;
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+    }
+    .highlight {
+        background-color: #F0F7FF;
+        padding: 20px;
+        border-radius: 10px;
+        border-left: 5px solid #1E3A8A;
+        margin-bottom: 1rem;
+    }
+    .feature-card {
+        background-color: #FFFFFF;
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        margin-bottom: 1rem;
+    }
+    .tech-badge {
+        display: inline-block;
+        background-color: #E5E7EB;
+        color: #374151;
+        padding: 5px 10px;
+        border-radius: 15px;
+        margin: 5px;
+        font-size: 0.9rem;
+    }
+    .footer {
+        margin-top: 3rem;
+        text-align: center;
+        color: #6B7280;
+        font-size: 0.8rem;
+    }
+    .sidebar-content {
+        padding: 15px;
+    }
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
+# App title and description
+st.markdown(
+    "<h1 class='main-header'>🏠 Prediksi Harga Rumah di Kota Yogyakarta</h1>",
+    unsafe_allow_html=True,
+)
+st.markdown(
+    """
+    Selamat datang di sistem **prediksi harga rumah** untuk wilayah **Kota Yogyakarta**.
+
+    Aplikasi ini memanfaatkan pendekatan hybrid cerdas yang menggabungkan:
+    
+    - 🔍 **Fuzzy Logic** — untuk menangani variabel kualitatif seperti jumlah kamar atau ketidakpastian pada luas bangunan.
+    - 🌲 **Random Forest** — model pembelajaran mesin berbasis ensemble.
+    - 🧬 **Genetic Algorithm** — digunakan untuk mengoptimalkan parameter model agar akurasi meningkat.
+    
+    Sistem ini membantu pengguna memperkirakan harga rumah berdasarkan fitur utama seperti:
+    - Luas tanah (`LT`)
+    - Luas bangunan (`LB`)
+    - Jumlah kamar tidur (`bedroom`)
+    - Jumlah kamar mandi (`bathroom`)
+    - Lokasi (`kecamatan` dan `kabupaten/kota`)
+    - Waktu terakhir listing diperbarui (`updated`)
+    """
+)
+
+st.markdown("---")
+
+st.subheader("🎯 Tujuan Aplikasi")
+st.markdown(
+    """
+    Aplikasi ini dikembangkan sebagai bagian dari penelitian untuk prediksi harga properti residensial 
+    secara lebih adaptif dan realistis, dengan cakupan terbatas hanya pada wilayah Kota Yogyakarta. 
+    Aplikasi ini tidak ditujukan untuk wilayah selain Kota Yogyakarta maupun di luar wilayah tersebut.
+
+    Dengan kombinasi teknik fuzzy dan pembelajaran mesin, sistem ini dapat memahami pola harga rumah 
+    yang seringkali tidak linier atau tidak pasti.
+    """
+)
+
+st.markdown("---")
+
+st.sidebar.title("📌 Navigasi")
+st.sidebar.markdown("Gunakan menu di atas atau sidebar untuk berpindah halaman.")
+
+st.sidebar.info(
+    """
+### Tentang Aplikasi
+Versi ini menampilkan halaman utama sebagai pengantar sistem.
+
+Untuk mencoba prediksi harga, silakan buka halaman **Prediksi** di menu samping.
 """
 )
 
-
-st.subheader("Masukkan Nilai Fitur")
-
-input_data = {}
-city_columns = [f for f in feature_names if f.startswith("city_")]
-
-for feature in feature_names:
-    if feature.startswith("city_"):
-        continue
-    input_data[feature] = st.number_input(f"{feature}", value=0, step=1)
-
-selected_city = st.selectbox(
-    "Kota", options=[col.replace("city_", "") for col in city_columns]
+st.markdown(
+    "<h2 class='sub-header'>🛠️ Teknologi yang Digunakan</h2>", unsafe_allow_html=True
 )
-input_data["city"] = selected_city
 
-if st.button("Prediksi"):
-    df = pd.DataFrame(columns=feature_names)
-    df.loc[0] = 0
+st.markdown(
+    """
+<div style="text-align: center; padding: 20px;">
+    <span class="tech-badge">🐍 Python</span>
+    <span class="tech-badge">📊 Pandas</span>
+    <span class="tech-badge">🔢 NumPy</span>
+    <span class="tech-badge">🤖 Scikit-learn</span>
+    <span class="tech-badge">🧠 Scikit-Fuzzy</span>
+    <span class="tech-badge">🧬 DEAP (Genetic Algorithm)</span>
+    <span class="tech-badge">📈 Matplotlib</span>
+    <span class="tech-badge">🗺️ Folium</span>
+    <span class="tech-badge">📦 Streamlit</span>
+    <span class="tech-badge">🧹 NLTK</span>
+</div>
+""",
+    unsafe_allow_html=True,
+)
 
-    for feature, value in input_data.items():
-        if feature in feature_names:
-            df.loc[0, feature] = value
-        elif feature == "city":
-            city_col = "city_" + value
-            if city_col in feature_names:
-                df.loc[0, city_col] = 1
+st.markdown(
+    """
+<div style="background-color: #1E3A8A; padding: 30px; border-radius: 10px; color: white; text-align: center; margin-top: 40px;">
+    <h2>Siap untuk Memprediksi Harga Rumah?</h2>
+    <p style="font-size: 1.2rem;">Gunakan fitur prediksi kami untuk memperkirakan harga properti berdasarkan preferensi Anda.</p>
+    <a href="/Prediction" target="_self">
+    <button style="background-color: white; color: #1E3A8A; border: none; padding: 12px 24px; border-radius: 5px; font-weight: bold; font-size: 1.1rem; cursor: pointer; margin-top: 15px;">Mulai Prediksi Sekarang</button>
+    </a>
+</div>
+""",
+    unsafe_allow_html=True,
+)
 
-    prediction = model.predict(df)[0]
-    st.success(f"Perkiraan Harga Rumah: Rp {prediction:,.0f}")
+st.markdown(
+    """
+<div class="footer">
+    <p>© 2025 Machine Learning Prediksi Harga Rumah Yogyakarta | Data terakhir diperbarui: 12 April 2025</p>
+</div>
+""",
+    unsafe_allow_html=True,
+)

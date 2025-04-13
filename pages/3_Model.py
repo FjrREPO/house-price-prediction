@@ -1,85 +1,112 @@
-import streamlit as st
-import pandas as pd
-import joblib
-import json
 import os
+import sys
+import json
+import pickle
+import numpy as np
+import pandas as pd
+import streamlit as st
+import plotly.express as px
+import plotly.graph_objects as go
+from datetime import datetime
+from sklearn.metrics import mean_absolute_percentage_error
 
 st.set_page_config(
-    page_title="Model",
-    page_icon="🚧",
+    page_title="House Price Prediction Models",
+    page_icon="🏠",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-current_dir = os.path.dirname(os.path.abspath(__file__))
-MODEL_DIR = os.path.join(current_dir, "../model")
-EVAL_DIR = os.path.join(MODEL_DIR, "evaluation")
-MODEL_PATH = os.path.join(MODEL_DIR, "model.joblib")
-PREDICTION_INFO_PATH = os.path.join(EVAL_DIR, "prediction_info.json")
-FEATURE_IMPORTANCE_PATH = os.path.join(EVAL_DIR, "feature_importance.csv")
-BEST_PARAMS_PATH = os.path.join(EVAL_DIR, "best_params.json")
-
-
-@st.cache_data
-def load_model():
-    return joblib.load(MODEL_PATH)
-
-
-@st.cache_data
-def load_feature_info():
-    with open(PREDICTION_INFO_PATH, "r") as f:
-        return json.load(f)
-
-
-@st.cache_data
-def load_feature_importance():
-    return pd.read_csv(FEATURE_IMPORTANCE_PATH)
-
-
-@st.cache_data
-def load_best_params():
-    with open(BEST_PARAMS_PATH, "r") as f:
-        return json.load(f)
-
-
-st.sidebar.title("Eksplorasi Model")
-section = st.sidebar.radio(
-    "Pilih Menu", ["Info Model", "Pentingnya Fitur", "Visualisasi Model"]
+st.markdown(
+    """
+    <style>
+     .main-header {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #1E88E5;
+        margin-bottom: 0.5rem;
+     }
+     .sub-header {
+        color: #424242;
+        font-size: 1.1rem;
+        margin-bottom: 2rem;
+     }
+     .section-header {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #1E88E5;
+        border-left: 4px solid #1E88E5;
+        padding-left: 10px;
+        margin-top: 1.5rem;
+        margin-bottom: 1rem;
+     }
+     .metric-card {
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        padding: 15px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+     }
+     .expander-header {
+        font-weight: 600;
+        color: #424242;
+     }
+     .stTabs [data-baseweb="tab-list"] {
+        gap: 24px;
+     }
+     .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        white-space: pre-wrap;
+        background-color: transparent;
+        border-radius: 4px 4px 0 0;
+        padding: 10px 16px;
+        font-weight: 600;
+     }
+     .file-stats {
+        margin-bottom: 10px;
+        padding: 5px 0;
+     }
+     .plotly-graph {
+        border-radius: 10px;
+        background-color: #f8f9fa;
+        padding: 15px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+     }
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
 
+st.markdown(
+    '<div class="main-header">🏠 House Price Prediction Models</div>',
+    unsafe_allow_html=True,
+)
+st.markdown(
+    '<div class="sub-header">Analisis dan visualisasi model prediksi harga rumah dengan perbandingan kinerja berbagai model seperti Random Forest, Fuzzy Tsukamoto, dan model Hybrid.</div>',
+    unsafe_allow_html=True,
+)
+last_updated = datetime.now().strftime("%d %B %Y, %H:%M:%S")
+st.markdown(f"*Terakhir diperbarui: {last_updated}*")
 
-model = load_model()
-feature_info = load_feature_info()
-feature_names = feature_info["features"]
-feature_importance_df = load_feature_importance()
-best_params = load_best_params()
+with st.sidebar:
+    st.markdown("## 🔍 Menu")
+    st.markdown("### 📊 Filter")
+    show_rows = st.slider("Baris yang ditampilkan", 5, 50, 10)
 
+    st.markdown("### 🧭 Navigasi")
+    nav_options = [
+        "Overview",
+        "Model Performance",
+        "Feature Importance",
+        # Etc
+    ]
+    selected_section = st.radio("Pilih bagian:", nav_options)
 
-if section == "Info Model":
-    st.title("🏠 Info Model Harga Rumah")
-    st.subheader("Parameter Terbaik")
-    st.json(best_params)
+    st.markdown("### ℹ️ Tentang")
+    st.info(
+        "Halaman ini menampilkan hasil evaluasi model prediksi harga rumah. "
+        "Gunakan filter di atas untuk menyesuaikan tampilan Anda dan navigasi untuk menuju bagian tertentu."
+    )
 
-    st.subheader("Fitur yang Digunakan")
-    st.write(feature_names)
-
-
-elif section == "Pentingnya Fitur":
-    st.title("📊  Fitur Penting")
-    st.dataframe(feature_importance_df)
-
-    st.subheader("15 Fitur dengan Importance Tertinggi")
-    st.image(os.path.join(EVAL_DIR, "feature_importance.png"))
-
-
-elif section == "Visualisasi Model":
-    st.title("📈 Visualisasi Model")
-
-    st.subheader("Aktual vs Prediksi")
-    st.image(os.path.join(EVAL_DIR, "actual_vs_predicted.png"))
-
-    st.subheader("Plot Residual")
-    st.image(os.path.join(EVAL_DIR, "residuals.png"))
-
-    st.subheader("Distribusi Residual")
-    st.image(os.path.join(EVAL_DIR, "residual_distribution.png"))
+    if st.button("🔄 Segarkan Data"):
+        st.cache_data.clear()
+        st.success("Data berhasil diperbarui!")
