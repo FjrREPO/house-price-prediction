@@ -1,14 +1,5 @@
-import os
-import sys
-import json
-import pickle
-import numpy as np
-import pandas as pd
 import streamlit as st
-import plotly.express as px
-import plotly.graph_objects as go
 from datetime import datetime
-from sklearn.metrics import mean_absolute_percentage_error
 
 st.set_page_config(
     page_title="House Price Prediction Models",

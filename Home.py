@@ -55,7 +55,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# App title and description
 st.markdown(
     "<h1 class='main-header'>🏠 Prediksi Harga Rumah di Kota Yogyakarta</h1>",
     unsafe_allow_html=True,
