@@ -82,7 +82,7 @@ def load_data():
         st.error(f"Error loading data: {e}")
         # Debug information
         if "price" in locals():
-            st.write(f"Problem value: {price_str}")
+            st.write(f"Problem values in 'price'")
         return pd.DataFrame()
 
 
