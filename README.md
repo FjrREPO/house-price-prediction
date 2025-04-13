@@ -1,4 +1,4 @@
-# Implementasi Model Hybrid Fuzzy Logic dan Random Forest untuk Prediksi Harga Rumah di Kota Yogyakarta
+# Implementasi Fuzzy Logic dan Optimasi Algoritma Genetika pada Random Forest untuk Prediksi Harga Rumah di Kota Yogyakarta
 
 ## Deskripsi
 

@@ -56,7 +56,7 @@ st.markdown(
 )
 
 st.markdown(
-    "<h1 class='main-header'>🏠 Prediksi Harga Rumah di Kota Yogyakarta</h1>",
+    "<h1 class='main-header'>🏠 Implementasi Fuzzy Logic dan Optimasi Algoritma Genetika pada Random Forest untuk Prediksi Harga Rumah di Kota Yogyakarta</h1>",
     unsafe_allow_html=True,
 )
 st.markdown(
@@ -77,6 +77,21 @@ st.markdown(
     - Lokasi (`kecamatan` dan `kabupaten/kota`)
     - Waktu terakhir listing diperbarui (`updated`)
     """
+)
+
+st.markdown("---")
+
+st.subheader("🔍 Github")
+st.markdown(
+    """
+    <div class="highlight">
+    <p style="font-size: 1.2rem; font-weight: bold;">Kunjungi repositori GitHub untuk melihat kode lebih lanjut:</p>
+    <a href="https://github.com/FjrREPO/house-price-prediction" target="_blank">
+    <button style="background-color: #1E3A8A; color: white; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; font-size: 1rem; cursor: pointer;">Lihat di GitHub</button>
+    </a>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
 st.markdown("---")
