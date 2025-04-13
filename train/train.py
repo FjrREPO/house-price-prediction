@@ -126,10 +126,8 @@ def main():
         f"{Fore.YELLOW}Random Forest improvement: {Fore.WHITE}{improvement_percentage:.2f}%{Style.RESET_ALL}"
     )
 
-    # Save the optimized model
     save_models(optimized_rf_model)
 
-    # Plot the comparison of base and optimized RF models
     plot_rf_results(base_mape, optimized_rf_mape)
     print(
         f"{Fore.GREEN}Random Forest model results plotted and saved.{Style.RESET_ALL}"

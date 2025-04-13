@@ -11,6 +11,14 @@ sys.path.append(os.path.join(current_dir, "../"))
 
 from utils.helper import preprocess_data, remove_outliers
 
+output_dirs = [
+    os.path.join(current_dir, "../dataset"),
+    os.path.join(current_dir, "../dataset/evaluation"),
+]
+
+for dir_path in output_dirs:
+    os.makedirs(dir_path, exist_ok=True)
+
 
 df = pd.read_csv(os.path.join(current_dir, "../dataset/houses.csv"))
 

@@ -1,507 +1,482 @@
-import os
-import pandas as pd
 import streamlit as st
-import plotly.express as px
+import pandas as pd
 import numpy as np
-import skfuzzy as fuzz
-from skfuzzy import control as ctrl
-from datetime import datetime
-from sklearn.metrics import mean_absolute_percentage_error
+import plotly.express as px
+import plotly.graph_objects as go
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os
+import re
 
-from utils.helper import preprocess_data, remove_outliers
+# Set page configuration
+st.set_page_config(page_title="Housing Price Analysis", page_icon="🏠", layout="wide")
 
-st.set_page_config(
-    page_title="Preprocessing Data",
-    page_icon="🏠",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
+# Add title and description
+st.title("🏠 Housing Price Analysis Dashboard")
 st.markdown(
     """
-<style>
-    .main-header {
-        font-size: 2.5rem;
-        font-weight: 700;
-        margin-bottom: 0.5rem;
-    }
-    .sub-header {
-        font-size: 1.1rem;
-        margin-bottom: 2rem;
-    }
-    .section-header {
-        font-size: 1.5rem;
-        font-weight: 600;
-        border-left: 4px solid #FF4B4B;
-        padding-left: 10px;
-        margin-top: 1.5rem;
-        margin-bottom: 1rem;
-    }
-    .metric-card {
-        background-color: #f8f9fa;
-        border-radius: 10px;
-        padding: 15px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-    }
-    .expander-header {
-        font-weight: 600;
-    }
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 24px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        white-space: pre-wrap;
-        background-color: transparent;
-        border-radius: 4px 4px 0 0;
-        padding: 10px 16px;
-        font-weight: 600;
-    }
-    .file-stats {
-        margin-bottom: 10px;
-        padding: 5px 0;
-    }
-</style>
-""",
-    unsafe_allow_html=True,
+This dashboard visualizes housing data across different regions with 
+price predictions using a fuzzy logic model. Explore the data through 
+various charts and statistics.
+"""
 )
 
-# Load and preprocess data
-current_dir = os.path.dirname(os.path.abspath(__file__))
-dataset_path = os.path.join(current_dir, "../dataset/houses.csv")
-df = pd.read_csv(dataset_path)
 
-df_preprocessed = preprocess_data(df)
-
-# Remove outliers
-columns_to_check = ["price", "bedroom", "bathroom", "LT", "LB"]
-df_cleaned = remove_outliers(df_preprocessed, columns_to_check)
-
-
-# Create fuzzy logic model based on cleaned data
-def create_fuzzy_model(df):
-    # Calculate quartiles for each feature
-    bedroom_quartiles = np.percentile(df["bedroom"], [25, 50, 75])
-    bathroom_quartiles = np.percentile(df["bathroom"], [25, 50, 75])
-    LT_quartiles = np.percentile(df["LT"], [25, 50, 75])
-    LB_quartiles = np.percentile(df["LB"], [25, 50, 75])
-    price_quartiles = np.percentile(df["price"], [25, 50, 75])
-
-    # Create antecedents and consequent
-    bathroom = ctrl.Antecedent(np.arange(0, max(df["bathroom"]) + 1, 1), "bathroom")
-    bedroom = ctrl.Antecedent(np.arange(0, max(df["bedroom"]) + 1, 1), "bedroom")
-    LT = ctrl.Antecedent(np.arange(0, max(df["LT"]) + 1, 10), "LT")
-    LB = ctrl.Antecedent(np.arange(0, max(df["LB"]) + 1, 10), "LB")
-
-    price = ctrl.Consequent(
-        np.arange(
-            min(df["price"]),
-            max(df["price"]) + 1,
-            100_000,
-        ),
-        "price",
-    )
-
-    # Membership functions for bathroom
-    bathroom["poor"] = fuzz.trapmf(
-        bathroom.universe,
-        [0, bathroom_quartiles[0], bathroom_quartiles[0], bathroom_quartiles[1]],
-    )
-    bathroom["average"] = fuzz.trapmf(
-        bathroom.universe,
-        [
-            bathroom_quartiles[0],
-            bathroom_quartiles[1],
-            bathroom_quartiles[1],
-            bathroom_quartiles[2],
-        ],
-    )
-    bathroom["good"] = fuzz.trapmf(
-        bathroom.universe,
-        [
-            bathroom_quartiles[1],
-            bathroom_quartiles[2],
-            bathroom_quartiles[2],
-            df["bathroom"].max(),
-        ],
-    )
-
-    # Membership functions for bedroom
-    bedroom["poor"] = fuzz.trapmf(
-        bedroom.universe,
-        [0, bedroom_quartiles[0], bedroom_quartiles[0], bedroom_quartiles[1]],
-    )
-    bedroom["average"] = fuzz.trapmf(
-        bedroom.universe,
-        [
-            bedroom_quartiles[0],
-            bedroom_quartiles[1],
-            bedroom_quartiles[1],
-            bedroom_quartiles[2],
-        ],
-    )
-    bedroom["good"] = fuzz.trapmf(
-        bedroom.universe,
-        [
-            bedroom_quartiles[1],
-            bedroom_quartiles[2],
-            bedroom_quartiles[2],
-            df["bedroom"].max(),
-        ],
-    )
-
-    # Membership functions for LT (Land Area)
-    LT["poor"] = fuzz.trapmf(
-        LT.universe, [0, LT_quartiles[0], LT_quartiles[0], LT_quartiles[1]]
-    )
-    LT["average"] = fuzz.trapmf(
-        LT.universe,
-        [LT_quartiles[0], LT_quartiles[1], LT_quartiles[1], LT_quartiles[2]],
-    )
-    LT["good"] = fuzz.trapmf(
-        LT.universe,
-        [
-            LT_quartiles[1],
-            LT_quartiles[2],
-            LT_quartiles[2],
-            df["LT"].max(),
-        ],
-    )
-
-    # Membership functions for LB (Building Area)
-    LB["poor"] = fuzz.trapmf(
-        LB.universe, [0, LB_quartiles[0], LB_quartiles[0], LB_quartiles[1]]
-    )
-    LB["average"] = fuzz.trapmf(
-        LB.universe,
-        [LB_quartiles[0], LB_quartiles[1], LB_quartiles[1], LB_quartiles[2]],
-    )
-    LB["good"] = fuzz.trapmf(
-        LB.universe,
-        [
-            LB_quartiles[1],
-            LB_quartiles[2],
-            LB_quartiles[2],
-            df["LB"].max(),
-        ],
-    )
-
-    # Calculate means and spreads for price membership functions
-    price_mean_poor = price_quartiles[0]
-    price_mean_average = price_quartiles[1]
-    price_mean_good = price_quartiles[2]
-
-    spread_poor = (price_quartiles[1] - price_quartiles[0]) / 2
-    spread_average = (price_quartiles[2] - price_quartiles[1]) / 2
-    spread_good = (df["price"].max() - price_quartiles[2]) / 2
-
-    # Membership functions for price
-    price["poor"] = fuzz.gaussmf(price.universe, price_mean_poor, spread_poor)
-    price["average"] = fuzz.gaussmf(price.universe, price_mean_average, spread_average)
-    price["good"] = fuzz.gaussmf(price.universe, price_mean_good, spread_good)
-
-    # Define fuzzy rules
-    rule1 = ctrl.Rule(
-        bedroom["good"] & bathroom["good"] & LT["good"] & LB["good"], price["good"]
-    )
-    rule2 = ctrl.Rule(
-        bedroom["average"] & bathroom["average"] & LT["average"] & LB["average"],
-        price["average"],
-    )
-    rule3 = ctrl.Rule(
-        bedroom["poor"] & bathroom["poor"] & LT["poor"] & LB["poor"], price["poor"]
-    )
-
-    rule4 = ctrl.Rule(
-        bedroom["good"] & bathroom["average"] & LT["good"] & LB["good"], price["good"]
-    )
-    rule5 = ctrl.Rule(
-        bedroom["average"] & bathroom["good"] & LT["average"] & LB["good"],
-        price["average"],
-    )
-    rule6 = ctrl.Rule(
-        bedroom["poor"] & bathroom["good"] & LT["good"] & LB["average"],
-        price["average"],
-    )
-    rule7 = ctrl.Rule(
-        bedroom["average"] & bathroom["poor"] & LT["average"] & LB["average"],
-        price["poor"],
-    )
-    rule8 = ctrl.Rule(
-        bedroom["good"] & bathroom["good"] & LT["poor"] & LB["average"],
-        price["average"],
-    )
-
-    # Create control system
-    pricing_ctrl = ctrl.ControlSystem(
-        [rule1, rule2, rule3, rule4, rule5, rule6, rule7, rule8]
-    )
-
-    pricing_sim = ctrl.ControlSystemSimulation(pricing_ctrl)
-
-    return pricing_sim, {
-        "bathroom_quartiles": bathroom_quartiles,
-        "bedroom_quartiles": bedroom_quartiles,
-        "LT_quartiles": LT_quartiles,
-        "LB_quartiles": LB_quartiles,
-        "price_quartiles": price_quartiles,
-    }
-
-
-def predict_price_fuzzy(sim, bedroom_val, bathroom_val, LT_val, LB_val):
+# Load and process data
+@st.cache_data
+def load_data():
     try:
-        sim.input["bedroom"] = bedroom_val
-        sim.input["bathroom"] = bathroom_val
-        sim.input["LT"] = LT_val
-        sim.input["LB"] = LB_val
+        data_path = os.path.join("dataset", "houses-cleaned.csv")
+        df = pd.read_csv(data_path)
 
-        sim.compute()
+        # Clean and transform the data
+        # Process price column (convert "Rp X,XX Miliar/Juta" to numeric)
+        def convert_to_numeric(value: str) -> float:
+            try:
+                value_numeric = re.sub(r"Rp\s?", "", value)
 
-        return sim.output["price"] if "price" in sim.output else None
+                if "Miliar" in value_numeric:
+                    value_numeric = (
+                        float(re.sub(r"\s?Miliar", "", value_numeric).replace(",", ".")) * 1e9
+                    )
+                elif "Juta" in value_numeric:
+                    value_numeric = (
+                        float(re.sub(r"\s?Juta", "", value_numeric).replace(",", ".")) * 1e6
+                    )
+                else:
+                    return None
+                return value_numeric
+            except ValueError:
+                return None
+
+        df["price_numeric"] = df["price"].apply(convert_to_numeric)
+
+        # Process LT and LB columns (extract numeric values)
+        def extract_area(area_str):
+            if isinstance(area_str, str):
+                # Extract numeric value from format ": XXX m²"
+                match = re.search(r":\s*(\d+)\s*m²", area_str)
+                if match:
+                    return float(match.group(1))
+            return np.nan
+
+        df["LT_numeric"] = df["LT"].apply(extract_area)
+        df["LB_numeric"] = df["LB"].apply(extract_area)
+
+        # Extract location (kabupaten/kota)
+        def extract_location(loc_str):
+            if isinstance(loc_str, str):
+                parts = loc_str.split(",")
+                if len(parts) > 1:
+                    return parts[1].strip()
+                return parts[0].strip()
+            return "Unknown"
+
+        df["kabupaten_kota"] = df["location"].apply(extract_location)
+
+        return df
+    except FileNotFoundError:
+        st.error("Data file not found. Please check the path to houses-cleaned.csv")
+        return pd.DataFrame()
     except Exception as e:
-        st.error(f"Error predicting price: {str(e)}")
-        return None
+        st.error(f"Error loading data: {e}")
+        # Debug information
+        if "price" in locals():
+            st.write(f"Problem value: {price_str}")
+        return pd.DataFrame()
 
 
-# Main app
-st.markdown(
-    '<div class="main-header">🏠 Preprocessing Data</div>',
-    unsafe_allow_html=True,
-)
-st.markdown(
-    '<div class="sub-header">Analyze and predict property prices using fuzzy logic.</div>',
-    unsafe_allow_html=True,
-)
+df = load_data()
 
-last_updated = datetime.now().strftime("%d %B %Y, %H:%M:%S")
-st.markdown(f"*Last updated: {last_updated}*")
+if not df.empty:
+    # Display raw data issues if any
+    if df["price_numeric"].isna().any():
+        st.warning(
+            f"Found {df['price_numeric'].isna().sum()} rows with invalid price data"
+        )
 
-with st.sidebar:
-    st.markdown("## 🔍 Menu")
-    st.markdown("### 📊 Filter")
-    show_rows = st.slider("Rows to display", 5, 50, 10)
-    st.markdown("### 🧭 Navigation")
-    nav_options = ["Overview", "Data Analysis", "Price Prediction"]
-    selected_section = st.radio("Select section:", nav_options)
+        # Show sample of problematic rows
+        problem_rows = df[df["price_numeric"].isna()][["title", "price"]].head(5)
+        if not problem_rows.empty:
+            st.write("Sample of problematic price data:")
+            st.write(problem_rows)
 
-    if "kabupaten_kota" in df_cleaned.columns:
-        st.markdown("### 🌍 Region")
-        available_regions = ["All"] + list(df_cleaned["kabupaten_kota"].unique())
-        selected_region = st.selectbox("Select region:", available_regions)
+    # Additional data cleaning
+    df = df.dropna(subset=["price_numeric", "LT_numeric", "LB_numeric"])
 
-# Filter by region if selected
-if "kabupaten_kota" in df_cleaned.columns and selected_region != "All":
-    filtered_df = df_cleaned[df_cleaned["kabupaten_kota"] == selected_region]
-else:
-    filtered_df = df_cleaned
+    # Sidebar filters
+    st.sidebar.header("Filters")
 
-# Create fuzzy model
-fuzzy_model, quartiles = create_fuzzy_model(filtered_df)
+    # Region filter
+    regions = ["All Regions"] + sorted(df["kabupaten_kota"].unique().tolist())
+    selected_region = st.sidebar.selectbox("Select Region", regions)
 
-if selected_section == "Overview":
-    st.markdown(
-        '<div class="section-header">📊 Data Summary</div>', unsafe_allow_html=True
+    # Price range filter
+    min_price = int(df["price_numeric"].min())
+    max_price = int(df["price_numeric"].max())
+    price_range = st.sidebar.slider(
+        "Price Range (in millions)",
+        min_value=min_price // 1_000_000,
+        max_value=max_price // 1_000_000,
+        value=(min_price // 1_000_000, max_price // 1_000_000),
     )
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("Total Properties", len(filtered_df))
-    with col2:
-        st.metric("Average Price", f"{filtered_df['price'].mean():,.2f}")
-
-    st.write(filtered_df.head(show_rows))
-
-    st.markdown(
-        '<div class="section-header">📈 Data Distribution</div>', unsafe_allow_html=True
+    # Bedroom filter
+    bedrooms = sorted(df["bedroom"].unique().tolist())
+    selected_bedrooms = st.sidebar.multiselect(
+        "Number of Bedrooms", options=bedrooms, default=bedrooms
     )
 
-    tab1, tab2, tab3 = st.tabs(
-        ["Price Distribution", "Property Features", "Correlation"]
-    )
+    # Filter the dataframe based on selections
+    filtered_df = df.copy()
+
+    if selected_region != "All Regions":
+        filtered_df = filtered_df[filtered_df["kabupaten_kota"] == selected_region]
+
+    filtered_df = filtered_df[
+        (filtered_df["price_numeric"] >= price_range[0] * 1_000_000)
+        & (filtered_df["price_numeric"] <= price_range[1] * 1_000_000)
+    ]
+
+    if selected_bedrooms:
+        filtered_df = filtered_df[filtered_df["bedroom"].isin(selected_bedrooms)]
+
+    # Main layout with tabs
+    tab1, tab2, tab3 = st.tabs(["Overview", "Price Analysis", "Property Features"])
 
     with tab1:
-        fig = px.histogram(filtered_df, x="price", nbins=30, title="Price Distribution")
-        st.plotly_chart(fig, use_container_width=True)
+        st.header("Data Overview")
+
+        # Display summary statistics
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.subheader("Summary Statistics")
+            # Create a display version of the dataframe with properly formatted columns
+            display_stats = (
+                filtered_df[
+                    [
+                        "price_numeric",
+                        "bedroom",
+                        "bathroom",
+                        "carport",
+                        "LT_numeric",
+                        "LB_numeric",
+                    ]
+                ]
+                .describe()
+                .round(2)
+            )
+            display_stats.columns = [
+                "Price (Rp)",
+                "Bedrooms",
+                "Bathrooms",
+                "Carport",
+                "Land Area (m²)",
+                "Building Area (m²)",
+            ]
+            st.dataframe(display_stats, use_container_width=True)
+
+        with col2:
+            st.subheader("Region Distribution")
+            if selected_region == "All Regions":
+                region_counts = df["kabupaten_kota"].value_counts().reset_index()
+                region_counts.columns = ["Region", "Count"]
+                fig = px.pie(region_counts, values="Count", names="Region", hole=0.4)
+                fig.update_layout(height=400)
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info(f"Displaying data for {selected_region}")
+                st.metric("Number of Properties", filtered_df.shape[0])
+                avg_price = filtered_df["price_numeric"].mean()
+                if avg_price >= 1_000_000_000:
+                    st.metric(
+                        "Average Price", f"Rp {avg_price/1_000_000_000:.2f} Miliar"
+                    )
+                else:
+                    st.metric("Average Price", f"Rp {avg_price/1_000_000:.2f} Juta")
+
+        # Data table
+        st.subheader("Data Sample")
+        display_cols = [
+            "title",
+            "price",
+            "bedroom",
+            "bathroom",
+            "carport",
+            "LT",
+            "LB",
+            "location",
+        ]
+        st.dataframe(filtered_df[display_cols].head(10), use_container_width=True)
 
     with tab2:
+        st.header("Price Analysis")
+
         col1, col2 = st.columns(2)
+
         with col1:
-            fig = px.box(
+            st.subheader("Price Distribution")
+            # Determine the unit based on price range
+            use_billions = filtered_df["price_numeric"].mean() > 1_000_000_000
+
+            if use_billions:
+                # Convert price to billions for better visualization
+                filtered_df["price_display"] = (
+                    filtered_df["price_numeric"] / 1_000_000_000
+                )
+                price_label = "Price (Miliar Rp)"
+            else:
+                # Convert price to millions for better visualization
+                filtered_df["price_display"] = filtered_df["price_numeric"] / 1_000_000
+                price_label = "Price (Juta Rp)"
+
+            fig = px.histogram(
                 filtered_df,
-                y=["bedroom", "bathroom"],
-                title="Bedroom and Bathroom Distribution",
+                x="price_display",
+                nbins=30,
+                title="Price Distribution Histogram",
+                labels={"price_display": price_label},
+            )
+            fig.update_layout(bargap=0.1)
+            st.plotly_chart(fig, use_container_width=True)
+
+        with col2:
+            st.subheader("Price by Region")
+            if selected_region == "All Regions":
+                # Determine the unit based on price range
+                use_billions = df["price_numeric"].mean() > 1_000_000_000
+
+                if use_billions:
+                    # Convert price to billions for better visualization
+                    df["price_display"] = df["price_numeric"] / 1_000_000_000
+                    price_label = "Price (Miliar Rp)"
+                else:
+                    # Convert price to millions for better visualization
+                    df["price_display"] = df["price_numeric"] / 1_000_000
+                    price_label = "Price (Juta Rp)"
+
+                fig = px.box(
+                    df,
+                    x="kabupaten_kota",
+                    y="price_display",
+                    title="Price Distribution by Region",
+                    labels={"kabupaten_kota": "Region", "price_display": price_label},
+                )
+                fig.update_layout(xaxis_tickangle=-45)
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info(f"Price statistics for {selected_region}")
+                stats = filtered_df["price_numeric"].describe()
+
+                # Format price display based on magnitude
+                def format_price(price_value):
+                    if price_value >= 1_000_000_000:
+                        return f"Rp {price_value/1_000_000_000:.2f} Miliar"
+                    else:
+                        return f"Rp {price_value/1_000_000:.2f} Juta"
+
+                min_price = stats["min"]
+                max_price = stats["max"]
+                median_price = stats["50%"]
+
+                st.metric("Minimum Price", format_price(min_price))
+                st.metric("Maximum Price", format_price(max_price))
+                st.metric("Median Price", format_price(median_price))
+
+        # Price correlation
+        st.subheader("Price Correlation with Property Features")
+        corr_cols = [
+            "price_numeric",
+            "bedroom",
+            "bathroom",
+            "carport",
+            "LT_numeric",
+            "LB_numeric",
+        ]
+        corr_labels = [
+            "Price",
+            "Bedrooms",
+            "Bathrooms",
+            "Carport",
+            "Land Area",
+            "Building Area",
+        ]
+
+        # Calculate correlation matrix
+        corr_matrix = filtered_df[corr_cols].corr()
+        corr_matrix.columns = corr_labels
+        corr_matrix.index = corr_labels
+
+        # Plot heatmap
+        fig, ax = plt.subplots(figsize=(10, 8))
+        sns.heatmap(
+            corr_matrix, annot=True, cmap="coolwarm", fmt=".2f", linewidths=0.5, ax=ax
+        )
+        st.pyplot(fig)
+
+    with tab3:
+        st.header("Property Feature Analysis")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.subheader("Bedroom vs. Price")
+            # Determine price display unit
+            use_billions = filtered_df["price_numeric"].mean() > 1_000_000_000
+
+            if use_billions:
+                y_axis = "price_display"
+                y_title = "Price (Miliar Rp)"
+            else:
+                y_axis = "price_display"
+                y_title = "Price (Juta Rp)"
+
+            fig = px.scatter(
+                filtered_df,
+                x="bedroom",
+                y=y_axis,
+                size="LB_numeric",
+                color="kabupaten_kota" if selected_region == "All Regions" else None,
+                hover_data=["bathroom", "LT_numeric", "title"],
+                title="Price vs. Number of Bedrooms",
+                labels={
+                    "bedroom": "Bedrooms",
+                    y_axis: y_title,
+                    "LB_numeric": "Building Area (m²)",
+                },
             )
             st.plotly_chart(fig, use_container_width=True)
 
         with col2:
-            fig = px.box(
-                filtered_df, y=["LT", "LB"], title="Land and Building Area Distribution"
+            st.subheader("Building Area vs. Land Area")
+            # Determine the unit based on price range
+            use_billions = filtered_df["price_numeric"].mean() > 1_000_000_000
+
+            if use_billions:
+                color_axis = "price_display"
+                color_title = "Price (Miliar Rp)"
+            else:
+                color_axis = "price_display"
+                color_title = "Price (Juta Rp)"
+
+            fig = px.scatter(
+                filtered_df,
+                x="LT_numeric",
+                y="LB_numeric",
+                size="price_numeric",
+                color=color_axis,
+                hover_data=["bedroom", "bathroom", "kabupaten_kota", "title"],
+                title="Building Area vs. Land Area",
+                labels={
+                    "LT_numeric": "Land Area (m²)",
+                    "LB_numeric": "Building Area (m²)",
+                    color_axis: color_title,
+                },
             )
             st.plotly_chart(fig, use_container_width=True)
 
-    with tab3:
-        corr = filtered_df[["price", "bedroom", "bathroom", "LT", "LB"]].corr()
-        fig = px.imshow(corr, text_auto=True, title="Correlation Between Features")
-        st.plotly_chart(fig, use_container_width=True)
+        # Feature distribution
+        st.subheader("Feature Distributions")
 
-elif selected_section == "Data Analysis":
-    st.markdown(
-        '<div class="section-header">🧹 Cleaned Data Statistics</div>',
-        unsafe_allow_html=True,
-    )
-    st.write(filtered_df.describe())
+        feature_map = {
+            "bedroom": {"col": "bedroom", "title": "Bedrooms"},
+            "bathroom": {"col": "bathroom", "title": "Bathrooms"},
+            "carport": {"col": "carport", "title": "Carport"},
+            "land_area": {"col": "LT_numeric", "title": "Land Area (m²)"},
+            "building_area": {"col": "LB_numeric", "title": "Building Area (m²)"},
+        }
 
-    st.markdown(
-        '<div class="section-header">📊 Quartile Analysis</div>',
-        unsafe_allow_html=True,
-    )
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.subheader("Price Quartiles")
-        st.write(f"Lower (25%): {quartiles['price_quartiles'][0]:,.2f}")
-        st.write(f"Median (50%): {quartiles['price_quartiles'][1]:,.2f}")
-        st.write(f"Upper (75%): {quartiles['price_quartiles'][2]:,.2f}")
-
-    with col2:
-        st.subheader("Property Features Quartiles")
-        st.write(f"Bedroom: {quartiles['bedroom_quartiles']}")
-        st.write(f"Bathroom: {quartiles['bathroom_quartiles']}")
-        st.write(f"Land Area (LT): {quartiles['LT_quartiles']}")
-        st.write(f"Building Area (LB): {quartiles['LB_quartiles']}")
-
-    st.markdown(
-        '<div class="section-header">🔍 Feature Analysis</div>',
-        unsafe_allow_html=True,
-    )
-
-    feature = st.selectbox(
-        "Select feature to analyze:", ["bedroom", "bathroom", "LT", "LB"]
-    )
-
-    fig = px.scatter(
-        filtered_df,
-        x=feature,
-        y="price",
-        title=f"Relationship between {feature} and Price",
-        trendline="ols",
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-elif selected_section == "Price Prediction":
-    st.markdown(
-        '<div class="section-header">⚙️ Fuzzy Logic Price Prediction</div>',
-        unsafe_allow_html=True,
-    )
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        bedroom_val = st.slider(
-            "Number of Bedrooms",
-            int(filtered_df["bedroom"].min()),
-            int(filtered_df["bedroom"].max()),
-            int(filtered_df["bedroom"].median()),
+        selected_feature_key = st.selectbox(
+            "Select Feature to Analyze",
+            options=list(feature_map.keys()),
+            format_func=lambda x: feature_map[x]["title"],
         )
 
-        bathroom_val = st.slider(
-            "Number of Bathrooms",
-            int(filtered_df["bathroom"].min()),
-            int(filtered_df["bathroom"].max()),
-            int(filtered_df["bathroom"].median()),
-        )
+        selected_feature = feature_map[selected_feature_key]["col"]
+        feature_title = feature_map[selected_feature_key]["title"]
 
-    with col2:
-        lt_val = st.slider(
-            "Land Area (m²)",
-            int(filtered_df["LT"].min()),
-            int(filtered_df["LT"].max()),
-            int(filtered_df["LT"].median()),
-        )
+        col1, col2 = st.columns(2)
 
-        lb_val = st.slider(
-            "Building Area (m²)",
-            int(filtered_df["LB"].min()),
-            int(filtered_df["LB"].max()),
-            int(filtered_df["LB"].median()),
-        )
+        with col1:
+            fig = px.histogram(
+                filtered_df,
+                x=selected_feature,
+                title=f"{feature_title} Distribution",
+                nbins=20,
+                labels={selected_feature: feature_title},
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
-    if st.button("Predict Price"):
-        predicted_price = predict_price_fuzzy(
-            fuzzy_model, bedroom_val, bathroom_val, lt_val, lb_val
-        )
+        with col2:
+            if selected_region == "All Regions":
+                fig = px.box(
+                    df,
+                    x="kabupaten_kota",
+                    y=selected_feature,
+                    title=f"{feature_title} by Region",
+                    labels={
+                        "kabupaten_kota": "Region",
+                        selected_feature: feature_title,
+                    },
+                )
+                fig.update_layout(xaxis_tickangle=-45)
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info(f"{feature_title} statistics for {selected_region}")
+                stats = filtered_df[selected_feature].describe()
+                cols = st.columns(4)
+                cols[0].metric("Min", f"{stats['min']:.1f}")
+                cols[1].metric("Max", f"{stats['max']:.1f}")
+                cols[2].metric("Median", f"{stats['50%']:.1f}")
+                cols[3].metric("Mean", f"{stats['mean']:.1f}")
 
-        if predicted_price is not None:
-            st.success(f"Predicted Price: Rp {predicted_price:,.2f}")
+        # Property type analysis (if badges contain this info)
+        if "badges" in df.columns:
+            st.subheader("Property Types & Features")
 
-            # Find similar properties
-            st.markdown(
-                '<div class="section-header">👨‍👩‍👧‍👦 Similar Properties</div>',
-                unsafe_allow_html=True,
+            # Extract property types from badges
+            def extract_property_types(badges_str):
+                if isinstance(badges_str, str):
+                    return badges_str.split(", ")
+                return []
+
+            # Create a new column with list of property types
+            filtered_df["property_features"] = filtered_df["badges"].apply(
+                extract_property_types
             )
 
-            # Find properties with similar features
-            bedroom_range = (bedroom_val - 1, bedroom_val + 1)
-            bathroom_range = (bathroom_val - 1, bathroom_val + 1)
-            lt_range = (lt_val * 0.8, lt_val * 1.2)
-            lb_range = (lb_val * 0.8, lb_val * 1.2)
+            # Count occurrences of each property type
+            property_types = {}
+            for features_list in filtered_df["property_features"]:
+                for feature in features_list:
+                    if feature in property_types:
+                        property_types[feature] += 1
+                    else:
+                        property_types[feature] = 1
 
-            similar_properties = filtered_df[
-                (filtered_df["bedroom"].between(*bedroom_range))
-                & (filtered_df["bathroom"].between(*bathroom_range))
-                & (filtered_df["LT"].between(*lt_range))
-                & (filtered_df["LB"].between(*lb_range))
-            ]
+            # Create dataframe for visualization
+            property_df = pd.DataFrame(
+                {
+                    "Feature": list(property_types.keys()),
+                    "Count": list(property_types.values()),
+                }
+            ).sort_values(by="Count", ascending=False)
 
-            if len(similar_properties) > 0:
-                st.write(f"Found {len(similar_properties)} similar properties:")
-                st.write(
-                    similar_properties[
-                        ["price", "bedroom", "bathroom", "LT", "LB"]
-                    ].head(5)
-                )
-
-                mean_price = similar_properties["price"].mean()
-                st.write(f"Average price of similar properties: {mean_price:,.2f}")
-                st.write(
-                    f"Difference from prediction: {abs(predicted_price - mean_price):,.2f} ({abs(predicted_price - mean_price)/mean_price*100:.2f}%)"
-                )
-            else:
-                st.write("No similar properties found.")
-
-    st.markdown(
-        '<div class="section-header">ℹ️ Model Performance</div>',
-        unsafe_allow_html=True,
+            fig = px.bar(
+                property_df,
+                x="Feature",
+                y="Count",
+                title="Popular Property Features",
+                labels={"Feature": "Property Feature", "Count": "Number of Properties"},
+            )
+            fig.update_layout(xaxis_tickangle=-45)
+            st.plotly_chart(fig, use_container_width=True)
+else:
+    st.error(
+        "No data available. Please check if the dataset has been properly cleaned and saved."
     )
 
-    # Calculate MAPE by comparing prediction with actual values
-    predictions = []
-    sample_size = min(100, len(filtered_df))
-    sample_df = filtered_df.sample(sample_size)
-
-    for _, row in sample_df.iterrows():
-        prediction = predict_price_fuzzy(
-            fuzzy_model, row["bedroom"], row["bathroom"], row["LT"], row["LB"]
-        )
-        if prediction is not None:
-            predictions.append(prediction)
-
-    if len(predictions) > 0:
-        mape = mean_absolute_percentage_error(
-            sample_df["price"].iloc[: len(predictions)], predictions
-        )
-        st.metric("Mean Absolute Percentage Error (MAPE)", f"{mape * 100:.2f}%")
-
-        threshold_mape = 0.15
-        accurate_predictions = sum(
-            1
-            for i, pred in enumerate(predictions)
-            if abs(pred - sample_df["price"].iloc[i]) / sample_df["price"].iloc[i]
-            <= threshold_mape
-        )
-
-        st.metric(
-            "Predictions within 15% error",
-            f"{accurate_predictions} out of {len(predictions)} ({accurate_predictions/len(predictions)*100:.2f}%)",
-        )
+# Add footer
+st.markdown("---")
+st.markdown("Housing Price Analysis Dashboard | Data from houses-cleaned.csv")

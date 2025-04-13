@@ -121,7 +121,7 @@ Dataset berisi informasi rumah di Yogyakarta yang telah diproses dan dibersihkan
 st.sidebar.success(
     """
 ### Metrik Model
-- MAPE Random Forest: ~10-15% 
+- MAPE Random Forest: ~9-10% 
 
 *Nilai aktual mungkin berbeda tergantung pada dataset yang digunakan.*
 """
