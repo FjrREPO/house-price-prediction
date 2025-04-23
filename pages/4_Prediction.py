@@ -53,8 +53,8 @@ with col1:
     bathroom = st.number_input("Jumlah Kamar Mandi", min_value=1, max_value=10, value=1)
 
 with col2:
-    lt = st.number_input("Luas Tanah (m²)", min_value=50, max_value=1000, value=120)
-    lb = st.number_input("Luas Bangunan (m²)", min_value=30, max_value=500, value=80)
+    lt = st.number_input("Luas Tanah (m²)", min_value=30, max_value=1000, value=120)
+    lb = st.number_input("Luas Bangunan (m²)", min_value=20, max_value=500, value=80)
 
 if st.button("Prediksi Harga"):
     success = False
