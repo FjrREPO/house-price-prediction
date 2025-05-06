@@ -1,5 +1,6 @@
 import random
 import json
+import numpy as np
 from rf_model import predict_price_rf, train_optimized_rf_model
 from sklearn.metrics import mean_absolute_percentage_error
 
@@ -45,30 +46,43 @@ class GAOptimizer:
             )
             self.generations_data.setdefault("MAPE", []).append(log_content.get("MAPE"))
 
-    def evaluate_rf_model(self, params, data, price_target):
-        n_estimators, max_depth, min_samples_split, min_samples_leaf = params
-
-        n_estimators = int(n_estimators)
-        max_depth = int(max_depth) if max_depth > 0 else None
-        min_samples_split = int(min_samples_split)
-        min_samples_leaf = int(min_samples_leaf)
-
+    def evaluate_rf_model(self, params, data, price_target, use_cv=True):
         model = train_optimized_rf_model(data, price_target, params)
+        
+        if use_cv:
+            # Use cross-validation for more robust evaluation
+            from sklearn.model_selection import KFold
+            from sklearn.metrics import make_scorer, mean_absolute_percentage_error
+            
+            kf = KFold(n_splits=5, shuffle=True, random_state=42)
+            mape_scorer = make_scorer(mean_absolute_percentage_error, greater_is_better=False)
+            cv_scores = []
+            
+            for train_idx, val_idx in kf.split(data):
+                X_train, X_val = data.iloc[train_idx], data.iloc[val_idx]
+                y_train, y_val = price_target.iloc[train_idx], price_target.iloc[val_idx]
+                
+                model = train_optimized_rf_model(X_train, y_train, params)
+                predictions = model.predict(X_val)
+                mape = mean_absolute_percentage_error(y_val, predictions)
+                cv_scores.append(mape)
+            
+            return np.mean(cv_scores)
+        else:
+            predictions = []
+            for i in range(len(data)):
+                prediction = predict_price_rf(
+                    model,
+                    data.iloc[i]["bedroom"],
+                    data.iloc[i]["bathroom"],
+                    data.iloc[i]["LT"],
+                    data.iloc[i]["LB"],
+                    fallback_value=price_target.iloc[i],
+                )
+                predictions.append(prediction)
 
-        predictions = []
-        for i in range(len(data)):
-            prediction = predict_price_rf(
-                model,
-                data.iloc[i]["bedroom"],
-                data.iloc[i]["bathroom"],
-                data.iloc[i]["LT"],
-                data.iloc[i]["LB"],
-                fallback_value=price_target.iloc[i],
-            )
-            predictions.append(prediction)
-
-        mape = mean_absolute_percentage_error(price_target, predictions)
-        return mape
+            mape = mean_absolute_percentage_error(price_target, predictions)
+            return mape
 
     def fitness_function(self, params, data, price_target):
         return -self.evaluate_rf_model(params, data, price_target)
@@ -103,16 +117,27 @@ class GAOptimizer:
         )
         return child1, child2
 
-    def mutation(self, individual, mutation_rate, object_bounds):
+    def mutation(self, individual, mutation_rate, object_bounds, generation=0, max_generations=10):
         individual = list(individual)
+        
+        # Adaptive mutation: higher mutation at the beginning, lower at the end
+        if max_generations > 1:
+            adaptive_rate = mutation_rate * (1 - (generation / max_generations))
+        else:
+            adaptive_rate = mutation_rate
+            
         for i in range(len(individual)):
-            if random.random() < mutation_rate:
+            # Use adaptive mutation rate
+            if random.random() < adaptive_rate:
                 lower_bound, upper_bound = object_bounds[i]
-                mutation_amount = random.uniform(-0.1, 0.1) * (
-                    upper_bound - lower_bound
-                )
+                
+                # Use Gaussian mutation for more natural exploration
+                sigma = (upper_bound - lower_bound) * 0.1  # 10% of range as standard deviation
+                mutation_amount = random.gauss(0, sigma)
+                
                 individual[i] += mutation_amount
                 individual[i] = max(min(individual[i], upper_bound), lower_bound)
+                
         return tuple(individual)
 
     def genetic_algorithm(
@@ -188,8 +213,13 @@ class GAOptimizer:
 
             mutated_population = []
             self.save_log(generation, -1, "mutation", "Mutation Phase")
+            
+            # Adaptive mutation based on current generation
+            current_mutation_rate = mutation_rate * (1 - 0.5 * (generation / generations))
+            self.generations_data["Mutation"].append(current_mutation_rate)
+            
             for i, ind in enumerate(next_population):
-                mutated = self.mutation(ind, mutation_rate, object_bounds)
+                mutated = self.mutation(ind, current_mutation_rate, object_bounds, generation, generations)
                 mutation_info = {"Original": ind, "Mutated": mutated}
                 self.save_log(generation, i, "mutation", mutation_info)
                 mutated_population.append(mutated)
