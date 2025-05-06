@@ -1,10 +1,3 @@
-"""
-Genetic Algorithm Optimizer for Random Forest hyperparameter tuning.
-
-This module provides a genetic algorithm implementation specifically designed
-to optimize Random Forest hyperparameters for regression problems.
-"""
-
 import random
 import json
 import logging
@@ -15,12 +8,12 @@ from sklearn.metrics import mean_absolute_percentage_error
 from typing import Tuple, Any
 from colorama import Fore, Style, init
 
-# Initialize colorama
+
 init(autoreset=True)
 
 logging.basicConfig(
     level=logging.INFO,
-    format=f"{Fore.CYAN}%(asctime)s{Style.RESET_ALL} - %(name)s - %(levelname)s - %(message)s"
+    format=f"{Fore.CYAN}%(asctime)s{Style.RESET_ALL} - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger("ga_optimizer")
 from rf_model import train_optimized_rf_model
@@ -28,16 +21,6 @@ from rf_model import train_optimized_rf_model
 
 class GAOptimizer:
     def __init__(self):
-        """
-        Initialize the Genetic Algorithm optimizer.
-
-        Sets up data structures for tracking evolution progress, including:
-        - Initial population
-        - Generation data
-        - Evaluation metrics
-        - Best individuals
-        - Convergence tracking
-        """
         self.initial_population = {"Individu": [], "Parameter": []}
         self.generations_data = {
             "Generasi": [],
@@ -110,7 +93,7 @@ class GAOptimizer:
 
         try:
             model_tuple = train_optimized_rf_model(data, price_target, params)
-            model, _ = model_tuple  # Unpack the tuple to get just the model
+            model, _ = model_tuple
 
             if use_cv:
 
@@ -130,7 +113,7 @@ class GAOptimizer:
                     )
 
                     model_tuple = train_optimized_rf_model(X_train, y_train, params)
-                    fold_model, _ = model_tuple  # Unpack the tuple to get just the model
+                    fold_model, _ = model_tuple
                     predictions = fold_model.predict(X_val)
                     mape = mean_absolute_percentage_error(y_val, predictions)
                     cv_scores.append(mape)
@@ -144,7 +127,9 @@ class GAOptimizer:
             self.evaluation_cache[params_key] = result
             return result
         except Exception as e:
-            logger.error(f"{Fore.RED}Error evaluating RF model: {str(e)}{Style.RESET_ALL}")
+            logger.error(
+                f"{Fore.RED}Error evaluating RF model: {str(e)}{Style.RESET_ALL}"
+            )
             return 1.0
 
     def fitness_function(
@@ -235,7 +220,9 @@ class GAOptimizer:
         previous_best_fitness = float("-inf")
 
         for generation in range(1, generations + 1):
-            logger.info(f"{Fore.MAGENTA}Generation {generation}/{generations}{Style.RESET_ALL}")
+            logger.info(
+                f"{Fore.MAGENTA}Generation {generation}/{generations}{Style.RESET_ALL}"
+            )
 
             fitnesses = [
                 self.fitness_function(
@@ -293,7 +280,7 @@ class GAOptimizer:
             selected_population = self.selection(population, fitnesses)
 
             next_population = []
-            # Crossover Phase
+
             for i in range(0, len(selected_population) - 1, 2):
                 parent1 = selected_population[i]
                 parent2 = selected_population[i + 1]
@@ -317,7 +304,6 @@ class GAOptimizer:
                 )
 
             mutated_population = []
-            # Mutation Phase
 
             current_mutation_rate = mutation_rate * (
                 1 - 0.5 * (generation / generations)

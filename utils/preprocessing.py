@@ -143,44 +143,37 @@ def convert_to_numeric(value: Union[str, int, float, None]) -> Optional[float]:
         return None
 
     try:
-        # Remove currency symbol and clean up
+
         value_str = str(value)
 
-        # First, handle special cases with "HEMAT" or discount text
         if "HEMAT" in value_str:
-            # Take only the part before "HEMAT"
+
             value_str = value_str.split("HEMAT")[0]
 
-        # Remove currency symbols and whitespace
         value_numeric = re.sub(r"Rp\s?", "", value_str)
 
-        # Handle "Miliar" (billions)
         if "Miliar" in value_numeric:
-            # Clean and extract the numeric part
+
             cleaned_value = re.sub(r"\s?Miliar.*$", "", value_numeric).replace(",", ".")
             return float(cleaned_value) * 1e9
 
-        # Handle "Juta" (millions)
         elif "Juta" in value_numeric:
-            # Clean and extract the numeric part
+
             cleaned_value = re.sub(r"\s?Juta.*$", "", value_numeric).replace(",", ".")
             return float(cleaned_value) * 1e6
 
-        # Handle M suffix (millions)
         elif "M" in value_numeric:
-            # Split by M and take the first part
+
             cleaned_value = value_numeric.split("M")[0].replace(",", ".")
             return float(cleaned_value) * 1e6
 
-        # Handle standard numeric values
         elif re.match(r"^\d+(\.\d+)?$", value_numeric.strip()):
             return float(value_numeric)
 
-        # Try one more regex pattern to extract the first number
         else:
             number_match = re.search(r"(\d+[.,]?\d*)", value_numeric)
             if number_match:
-                # If we found a number, try to convert it
+
                 extracted_number = number_match.group(1).replace(",", ".")
                 if "Miliar" in value_numeric or value_numeric.endswith("B"):
                     return float(extracted_number) * 1e9
@@ -266,29 +259,24 @@ def preprocess_area(area_str: Any) -> Optional[float]:
     try:
         area_text = str(area_str).strip()
 
-        # Try to find area in "LT: 150 m²" format
         match = re.search(
             r"[LT|LB]?\s*:?\s*(\d+[\.,]?\d*)\s*m²", area_text, re.IGNORECASE
         )
         if match:
             return float(match.group(1).replace(",", "."))
 
-        # Try standard format with m²
         match = re.search(r"(\d+[\.,]?\d*)\s*m²", area_text)
         if match:
             return float(match.group(1).replace(",", "."))
 
-        # Format without space: 150m²
         match = re.search(r"(\d+[\.,]?\d*)m²", area_text)
         if match:
             return float(match.group(1).replace(",", "."))
 
-        # Simple numeric format
         match = re.search(r"^(\d+[\.,]?\d*)$", area_text)
         if match:
             return float(match.group(1).replace(",", "."))
 
-        # Just extract any number as a last resort
         match = re.search(r"(\d+[\.,]?\d*)", area_text)
         if match:
             return float(match.group(1).replace(",", "."))

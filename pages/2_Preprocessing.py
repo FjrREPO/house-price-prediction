@@ -73,7 +73,9 @@ def load_data():
 
         return df
     except FileNotFoundError:
-        st.error("File data tidak ditemukan. Silakan periksa jalur ke houses-cleaned.csv")
+        st.error(
+            "File data tidak ditemukan. Silakan periksa jalur ke houses-cleaned.csv"
+        )
         return pd.DataFrame()
     except Exception as e:
         st.error(f"Kesalahan memuat data: {e}")

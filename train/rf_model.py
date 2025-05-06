@@ -13,19 +13,23 @@ from sklearn.metrics import (
 from sklearn.model_selection import KFold
 from colorama import Fore, Style, init
 
-# Initialize colorama
+
 init(autoreset=True)
 
 logging.basicConfig(
-    level=logging.INFO, 
-    format=f"{Fore.CYAN}%(asctime)s{Style.RESET_ALL} - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format=f"{Fore.CYAN}%(asctime)s{Style.RESET_ALL} - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger("rf_model")
 
 
-def train_base_rf_model(X: pd.DataFrame, y: pd.Series) -> Tuple[RandomForestRegressor, float]:
+def train_base_rf_model(
+    X: pd.DataFrame, y: pd.Series
+) -> Tuple[RandomForestRegressor, float]:
     try:
-        logger.info(f"{Fore.GREEN}Training base Random Forest model... [n_estimators=100]{Style.RESET_ALL}")
+        logger.info(
+            f"{Fore.GREEN}Training base Random Forest model... [n_estimators=100]{Style.RESET_ALL}"
+        )
         model = RandomForestRegressor(
             n_estimators=100,
             max_depth=None,
@@ -38,21 +42,24 @@ def train_base_rf_model(X: pd.DataFrame, y: pd.Series) -> Tuple[RandomForestRegr
         )
 
         model.fit(X, y)
-        
+
         feature_importances = pd.Series(
             model.feature_importances_, index=X.columns
         ).sort_values(ascending=False)
-        
-        top_features = ', '.join(feature_importances.index[:5].tolist())
-        logger.info(f"{Fore.GREEN}Base RF model trained successfully - Trees: {model.n_estimators}, Top features: {top_features}{Style.RESET_ALL}")
-        
-        # Evaluate model with cross-validation to get MAPE
+
+        top_features = ", ".join(feature_importances.index[:5].tolist())
+        logger.info(
+            f"{Fore.GREEN}Base RF model trained successfully - Trees: {model.n_estimators}, Top features: {top_features}{Style.RESET_ALL}"
+        )
+
         cv_mape, _, _ = evaluate_rf_model(model, X, y, cross_validate=True)
-        
+
         return model, cv_mape
 
     except Exception as e:
-        logger.error(f"{Fore.RED}Error training base Random Forest model: {str(e)}{Style.RESET_ALL}")
+        logger.error(
+            f"{Fore.RED}Error training base Random Forest model: {str(e)}{Style.RESET_ALL}"
+        )
         raise RuntimeError(f"Failed to train base RF model: {str(e)}")
 
 
@@ -130,7 +137,9 @@ def evaluate_rf_model(
             return mape, predictions.tolist(), metrics
 
     except Exception as e:
-        logger.error(f"{Fore.RED}Error evaluating Random Forest model: {str(e)}{Style.RESET_ALL}")
+        logger.error(
+            f"{Fore.RED}Error evaluating Random Forest model: {str(e)}{Style.RESET_ALL}"
+        )
 
         return 1.0, [], {"mape": 1.0, "r2": 0.0, "mae": 1e10, "rmse": 1e10}
 
@@ -138,78 +147,72 @@ def evaluate_rf_model(
 def train_optimized_rf_model(
     X: pd.DataFrame, y: pd.Series, params: Union[Tuple, List, Dict[str, Any]]
 ) -> Tuple[RandomForestRegressor, float]:
-    """
-    Train an optimized Random Forest model using the hyperparameters found by the GA optimizer.
-    
-    Args:
-        X: Feature dataframe
-        y: Target series
-        params: Parameters from GA optimization as a tuple, list, or dictionary
-               If dictionary, must contain keys: n_estimators, max_depth, min_samples_split,
-               min_samples_leaf, and optionally max_features and bootstrap
-        
-    Returns:
-        Tuple of (trained model, cv_mape)
-    """
     try:
-        # Convert dictionary to tuple if necessary
+
         if isinstance(params, dict):
             logger.info(f"Converting dictionary params to tuple: {params}")
             param_tuple = (
-                params.get('n_estimators', 100),
-                params.get('max_depth', None),
-                params.get('min_samples_split', 2),
-                params.get('min_samples_leaf', 1),
-                params.get('max_features', 'sqrt'),
-                params.get('bootstrap', True)
+                params.get("n_estimators", 100),
+                params.get("max_depth", None),
+                params.get("min_samples_split", 2),
+                params.get("min_samples_leaf", 1),
+                params.get("max_features", "sqrt"),
+                params.get("bootstrap", True),
             )
             params = param_tuple
             logger.info(f"Converted to tuple: {params}")
-        
-        # Validate params data type and structure
+
         if not isinstance(params, (list, tuple)):
-            raise TypeError(f"Expected params to be a list, tuple, or dict, got {type(params).__name__}: {params}")
-        
+            raise TypeError(
+                f"Expected params to be a list, tuple, or dict, got {type(params).__name__}: {params}"
+            )
+
         if len(params) < 4:
-            raise ValueError(f"Expected at least 4 parameters, got {len(params)}: {params}")
-            
-        # Parameter validation and conversion
+            raise ValueError(
+                f"Expected at least 4 parameters, got {len(params)}: {params}"
+            )
+
         try:
             n_estimators = int(params[0])
             if n_estimators <= 0:
                 raise ValueError(f"n_estimators must be positive, got {n_estimators}")
-                
+
             max_depth = int(params[1]) if params[1] and params[1] > 0 else None
-            
+
             min_samples_split = int(params[2])
             if min_samples_split < 2:
-                raise ValueError(f"min_samples_split must be at least 2, got {min_samples_split}")
-                
+                raise ValueError(
+                    f"min_samples_split must be at least 2, got {min_samples_split}"
+                )
+
             min_samples_leaf = int(params[3])
             if min_samples_leaf < 1:
-                raise ValueError(f"min_samples_leaf must be at least 1, got {min_samples_leaf}")
+                raise ValueError(
+                    f"min_samples_leaf must be at least 1, got {min_samples_leaf}"
+                )
         except (ValueError, TypeError) as e:
             raise ValueError(f"Error converting basic parameters: {e}") from e
 
-        # Handle max_features parameter
-        max_features = "sqrt"  # default
+        max_features = "sqrt"
         if len(params) > 4:
             mf_val = params[4]
-            logger.info(f"Processing max_features parameter with value: {mf_val} (type: {type(mf_val).__name__})")
-            
+            logger.info(
+                f"Processing max_features parameter with value: {mf_val} (type: {type(mf_val).__name__})"
+            )
+
             if isinstance(mf_val, str):
                 if mf_val in ["auto", "sqrt", "log2", None]:
                     max_features = mf_val
                 else:
                     raise ValueError(f"Invalid string value for max_features: {mf_val}")
-                    
+
             elif isinstance(mf_val, (int, float)):
-                # If max_features is a float between 0 and 1, use it directly
+
                 if 0.0 < mf_val <= 1.0:
-                    # Explicitly convert to float to ensure sklearn accepts it
+
                     max_features = float(mf_val)
                     logger.info(f"Using max_features as a float value: {max_features}")
-                # Otherwise apply range mapping
+
                 elif mf_val < 0.33:
                     max_features = "sqrt"
                 elif mf_val < 0.66:
@@ -217,10 +220,11 @@ def train_optimized_rf_model(
                 else:
                     max_features = None
             else:
-                logger.warning(f"Unexpected type for max_features: {type(mf_val).__name__}, using default 'sqrt'")
+                logger.warning(
+                    f"Unexpected type for max_features: {type(mf_val).__name__}, using default 'sqrt'"
+                )
 
-        # Handle bootstrap parameter
-        bootstrap = True  # default
+        bootstrap = True
         if len(params) > 5:
             bootstrap_val = params[5]
             if isinstance(bootstrap_val, bool):
@@ -228,15 +232,19 @@ def train_optimized_rf_model(
             elif isinstance(bootstrap_val, (int, float)):
                 bootstrap = bootstrap_val > 0.5
             else:
-                logger.warning(f"Unexpected type for bootstrap: {type(bootstrap_val).__name__}, using default True")
+                logger.warning(
+                    f"Unexpected type for bootstrap: {type(bootstrap_val).__name__}, using default True"
+                )
 
-        # Log all parameters that will be used
-        param_str = (f"n_estimators={n_estimators}, max_depth={max_depth}, "
-                    f"min_samples_split={min_samples_split}, min_samples_leaf={min_samples_leaf}, "
-                    f"max_features={max_features} (type: {type(max_features).__name__}), bootstrap={bootstrap}")
-        logger.info(f"{Fore.GREEN}Training optimized RF model with parameters: {param_str}{Style.RESET_ALL}")
+        param_str = (
+            f"n_estimators={n_estimators}, max_depth={max_depth}, "
+            f"min_samples_split={min_samples_split}, min_samples_leaf={min_samples_leaf}, "
+            f"max_features={max_features} (type: {type(max_features).__name__}), bootstrap={bootstrap}"
+        )
+        logger.info(
+            f"{Fore.GREEN}Training optimized RF model with parameters: {param_str}{Style.RESET_ALL}"
+        )
 
-        # Create and train the model
         model = RandomForestRegressor(
             n_estimators=n_estimators,
             max_depth=max_depth,
@@ -251,23 +259,32 @@ def train_optimized_rf_model(
         logger.info(f"Fitting model with X shape: {X.shape}, y shape: {y.shape}")
         try:
             model.fit(X, y)
-            logger.info(f"{Fore.GREEN}Optimized Random Forest model trained successfully{Style.RESET_ALL}")
+            logger.info(
+                f"{Fore.GREEN}Optimized Random Forest model trained successfully{Style.RESET_ALL}"
+            )
         except Exception as fit_error:
-            logger.error(f"{Fore.RED}Error during model.fit(): {str(fit_error)}{Style.RESET_ALL}")
+            logger.error(
+                f"{Fore.RED}Error during model.fit(): {str(fit_error)}{Style.RESET_ALL}"
+            )
             raise
-        
-        # Evaluate model with cross-validation to get MAPE
+
         cv_mape, _, _ = evaluate_rf_model(model, X, y, cross_validate=True)
 
         return model, cv_mape
 
     except Exception as e:
-        # Include traceback in the error message for better debugging
-        error_msg = f"{str(e)}\n{traceback.format_exc()}"
-        logger.error(f"{Fore.RED}Error training optimized Random Forest model: {error_msg}{Style.RESET_ALL}")
-        logger.error(f"{Fore.RED}Input params type: {type(params).__name__}, value: {params}{Style.RESET_ALL}")
 
-        logger.warning(f"{Fore.YELLOW}Falling back to default Random Forest model{Style.RESET_ALL}")
+        error_msg = f"{str(e)}\n{traceback.format_exc()}"
+        logger.error(
+            f"{Fore.RED}Error training optimized Random Forest model: {error_msg}{Style.RESET_ALL}"
+        )
+        logger.error(
+            f"{Fore.RED}Input params type: {type(params).__name__}, value: {params}{Style.RESET_ALL}"
+        )
+
+        logger.warning(
+            f"{Fore.YELLOW}Falling back to default Random Forest model{Style.RESET_ALL}"
+        )
         return train_base_rf_model(X, y)
 
 
@@ -309,7 +326,9 @@ def predict_price_rf(
         missing_columns = set(required_columns) - set(X_pred.columns)
 
         if missing_columns:
-            logger.warning(f"{Fore.YELLOW}Missing columns for prediction: {missing_columns}{Style.RESET_ALL}")
+            logger.warning(
+                f"{Fore.YELLOW}Missing columns for prediction: {missing_columns}{Style.RESET_ALL}"
+            )
             for col in missing_columns:
                 X_pred[col] = 0
 
@@ -320,6 +339,8 @@ def predict_price_rf(
         return prediction
 
     except Exception as e:
-        logger.error(f"{Fore.RED}Error predicting price with RF model: {str(e)}{Style.RESET_ALL}")
+        logger.error(
+            f"{Fore.RED}Error predicting price with RF model: {str(e)}{Style.RESET_ALL}"
+        )
 
         return fallback_value if fallback_value is not None else 5000000000

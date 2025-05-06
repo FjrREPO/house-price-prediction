@@ -387,18 +387,9 @@ def main() -> None:
 
     try:
         ga_optimizer = GAOptimizer()
-        
-        # Define the hyperparameter bounds for Random Forest
-        # Format: [(min_value, max_value), ...] for each parameter
-        param_bounds = [
-            (50, 200),        # n_estimators
-            (5, 30),          # max_depth
-            (2, 20),          # min_samples_split
-            (1, 10),          # min_samples_leaf
-            (0.1, 1.0)        # max_features (proportion)
-        ]
-        
-        # Run the genetic algorithm
+
+        param_bounds = [(50, 200), (5, 30), (2, 20), (1, 10), (0.1, 1.0)]
+
         best_individual, best_performers = ga_optimizer.genetic_algorithm(
             population_size=20,
             object_bounds=param_bounds,
@@ -407,27 +398,26 @@ def main() -> None:
             data=X_train,
             price_target=y_train,
             cv_folds=5,
-            early_stopping_generations=3
+            early_stopping_generations=3,
         )
-        
-        # Convert the best individual to hyperparameter dictionary
+
         best_params = {
-            'n_estimators': int(round(best_individual[0])),
-            'max_depth': int(round(best_individual[1])),
-            'min_samples_split': int(round(best_individual[2])),
-            'min_samples_leaf': int(round(best_individual[3])),
-            'max_features': float(best_individual[4])
+            "n_estimators": int(round(best_individual[0])),
+            "max_depth": int(round(best_individual[1])),
+            "min_samples_split": int(round(best_individual[2])),
+            "min_samples_leaf": int(round(best_individual[3])),
+            "max_features": float(best_individual[4]),
         }
     except Exception as e:
         logger.error(f"Error during GA optimization: {str(e)}")
         print(f"{Fore.YELLOW}Error during GA optimization: {str(e)}")
         print(f"{Fore.YELLOW}Using default parameters instead.{Style.RESET_ALL}")
         best_params = {
-            'n_estimators': 100,
-            'max_depth': 20,
-            'min_samples_split': 5,
-            'min_samples_leaf': 2,
-            'max_features': 'sqrt'
+            "n_estimators": 100,
+            "max_depth": 20,
+            "min_samples_split": 5,
+            "min_samples_leaf": 2,
+            "max_features": "sqrt",
         }
 
     print(f"\n{Fore.CYAN}Best hyperparameters found:{Style.RESET_ALL}")
