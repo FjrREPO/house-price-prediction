@@ -1,23 +1,69 @@
+"""
+Genetic Algorithm Optimizer for Random Forest hyperparameter tuning.
+
+This module provides a genetic algorithm implementation specifically designed
+to optimize Random Forest hyperparameters for regression problems.
+"""
+
 import random
 import json
+import logging
 import numpy as np
-from rf_model import predict_price_rf, train_optimized_rf_model
+import pandas as pd
+from sklearn.model_selection import KFold
 from sklearn.metrics import mean_absolute_percentage_error
+from typing import Tuple, Any
+from colorama import Fore, Style, init
+
+# Initialize colorama
+init(autoreset=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format=f"{Fore.CYAN}%(asctime)s{Style.RESET_ALL} - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger("ga_optimizer")
+from rf_model import train_optimized_rf_model
 
 
 class GAOptimizer:
     def __init__(self):
+        """
+        Initialize the Genetic Algorithm optimizer.
+
+        Sets up data structures for tracking evolution progress, including:
+        - Initial population
+        - Generation data
+        - Evaluation metrics
+        - Best individuals
+        - Convergence tracking
+        """
         self.initial_population = {"Individu": [], "Parameter": []}
         self.generations_data = {
             "Generasi": [],
             "Best Fitness": [],
             "MAPE": [],
             "Mutation": [],
+            "Convergence": [],
         }
         self.evaluation_data = {}
         self.best_individuals = {}
+        self.best_overall_fitness = float("-inf")
+        self.generations_without_improvement = 0
+        self.evaluation_cache = {}
 
-    def save_log(self, generation, individual_index, log_type, log_content):
+    def save_log(
+        self, generation: int, individual_index: int, log_type: str, log_content: Any
+    ) -> None:
+        """
+        Save logging information during GA execution.
+
+        Args:
+            generation: Current generation number
+            individual_index: Index of individual (-1 for general info)
+            log_type: Type of log entry (initial, fitness, crossover, mutation, elitism, final)
+            log_content: Data to log
+        """
         if log_type == "initial":
             self.initial_population.setdefault("Individu", []).append(
                 f"Individu {individual_index + 1}"
@@ -45,47 +91,71 @@ class GAOptimizer:
                 log_content.get("Best Fitness")
             )
             self.generations_data.setdefault("MAPE", []).append(log_content.get("MAPE"))
+            self.generations_data.setdefault("Convergence", []).append(
+                log_content.get("Convergence", 0)
+            )
 
-    def evaluate_rf_model(self, params, data, price_target, use_cv=True):
-        model = train_optimized_rf_model(data, price_target, params)
-        
-        if use_cv:
-            # Use cross-validation for more robust evaluation
-            from sklearn.model_selection import KFold
-            from sklearn.metrics import make_scorer, mean_absolute_percentage_error
-            
-            kf = KFold(n_splits=5, shuffle=True, random_state=42)
-            mape_scorer = make_scorer(mean_absolute_percentage_error, greater_is_better=False)
-            cv_scores = []
-            
-            for train_idx, val_idx in kf.split(data):
-                X_train, X_val = data.iloc[train_idx], data.iloc[val_idx]
-                y_train, y_val = price_target.iloc[train_idx], price_target.iloc[val_idx]
-                
-                model = train_optimized_rf_model(X_train, y_train, params)
-                predictions = model.predict(X_val)
-                mape = mean_absolute_percentage_error(y_val, predictions)
-                cv_scores.append(mape)
-            
-            return np.mean(cv_scores)
-        else:
-            predictions = []
-            for i in range(len(data)):
-                prediction = predict_price_rf(
-                    model,
-                    data.iloc[i]["bedroom"],
-                    data.iloc[i]["bathroom"],
-                    data.iloc[i]["LT"],
-                    data.iloc[i]["LB"],
-                    fallback_value=price_target.iloc[i],
+    def evaluate_rf_model(
+        self,
+        params: Tuple,
+        data: pd.DataFrame,
+        price_target: pd.Series,
+        use_cv: bool = True,
+        cv_folds: int = 5,
+    ) -> float:
+        params_key = str(params)
+        if params_key in self.evaluation_cache:
+            logger.debug(f"Using cached evaluation for params: {params_key}")
+            return self.evaluation_cache[params_key]
+
+        try:
+            model_tuple = train_optimized_rf_model(data, price_target, params)
+            model, _ = model_tuple  # Unpack the tuple to get just the model
+
+            if use_cv:
+
+                from sklearn.metrics import make_scorer
+
+                kf = KFold(n_splits=cv_folds, shuffle=True, random_state=42)
+                mape_scorer = make_scorer(
+                    mean_absolute_percentage_error, greater_is_better=False
                 )
-                predictions.append(prediction)
+                cv_scores = []
 
-            mape = mean_absolute_percentage_error(price_target, predictions)
-            return mape
+                for train_idx, val_idx in kf.split(data):
+                    X_train, X_val = data.iloc[train_idx], data.iloc[val_idx]
+                    y_train, y_val = (
+                        price_target.iloc[train_idx],
+                        price_target.iloc[val_idx],
+                    )
 
-    def fitness_function(self, params, data, price_target):
-        return -self.evaluate_rf_model(params, data, price_target)
+                    model_tuple = train_optimized_rf_model(X_train, y_train, params)
+                    fold_model, _ = model_tuple  # Unpack the tuple to get just the model
+                    predictions = fold_model.predict(X_val)
+                    mape = mean_absolute_percentage_error(y_val, predictions)
+                    cv_scores.append(mape)
+
+                result = np.mean(cv_scores)
+            else:
+
+                predictions = model.predict(data)
+                result = mean_absolute_percentage_error(price_target, predictions)
+
+            self.evaluation_cache[params_key] = result
+            return result
+        except Exception as e:
+            logger.error(f"{Fore.RED}Error evaluating RF model: {str(e)}{Style.RESET_ALL}")
+            return 1.0
+
+    def fitness_function(
+        self,
+        params: Tuple,
+        data: pd.DataFrame,
+        price_target: pd.Series,
+        cv_folds: int = 5,
+    ) -> float:
+        mape = self.evaluate_rf_model(params, data, price_target, cv_folds=cv_folds)
+        return -mape
 
     def create_initial_population(self, size, object_bounds):
         population = []
@@ -117,27 +187,27 @@ class GAOptimizer:
         )
         return child1, child2
 
-    def mutation(self, individual, mutation_rate, object_bounds, generation=0, max_generations=10):
+    def mutation(
+        self, individual, mutation_rate, object_bounds, generation=0, max_generations=10
+    ):
         individual = list(individual)
-        
-        # Adaptive mutation: higher mutation at the beginning, lower at the end
+
         if max_generations > 1:
             adaptive_rate = mutation_rate * (1 - (generation / max_generations))
         else:
             adaptive_rate = mutation_rate
-            
+
         for i in range(len(individual)):
-            # Use adaptive mutation rate
+
             if random.random() < adaptive_rate:
                 lower_bound, upper_bound = object_bounds[i]
-                
-                # Use Gaussian mutation for more natural exploration
-                sigma = (upper_bound - lower_bound) * 0.1  # 10% of range as standard deviation
+
+                sigma = (upper_bound - lower_bound) * 0.1
                 mutation_amount = random.gauss(0, sigma)
-                
+
                 individual[i] += mutation_amount
                 individual[i] = max(min(individual[i], upper_bound), lower_bound)
-                
+
         return tuple(individual)
 
     def genetic_algorithm(
@@ -148,6 +218,9 @@ class GAOptimizer:
         mutation_rate,
         data,
         price_target,
+        early_stopping_generations=5,
+        convergence_threshold=0.001,
+        cv_folds=3,
     ):
         population = self.create_initial_population(population_size, object_bounds)
 
@@ -157,12 +230,17 @@ class GAOptimizer:
             )
 
         best_performers = []
+        self.best_overall_fitness = float("-inf")
+        self.generations_without_improvement = 0
+        previous_best_fitness = float("-inf")
 
         for generation in range(1, generations + 1):
-            print(f"Generation {generation}/{generations}")
+            logger.info(f"{Fore.MAGENTA}Generation {generation}/{generations}{Style.RESET_ALL}")
 
             fitnesses = [
-                self.fitness_function(ind, data, price_target=price_target)
+                self.fitness_function(
+                    ind, data, price_target=price_target, cv_folds=cv_folds
+                )
                 for ind in population
             ]
             for i, (ind, fitness) in enumerate(zip(population, fitnesses)):
@@ -175,9 +253,36 @@ class GAOptimizer:
             best_mape = -best_fitness
             best_performers.append((best_individual, best_fitness))
 
+            if best_fitness > self.best_overall_fitness:
+                improvement = best_fitness - self.best_overall_fitness
+                self.best_overall_fitness = best_fitness
+                self.generations_without_improvement = 0
+                convergence_metric = improvement / (
+                    abs(self.best_overall_fitness) + 1e-10
+                )
+                logger.info(
+                    f"{Fore.GREEN}Gen {generation}: Improved fitness by {improvement:.6f} (MAPE: {-best_fitness*100:.2f}%, convergence: {convergence_metric:.6f}){Style.RESET_ALL}"
+                )
+            else:
+                self.generations_without_improvement += 1
+                convergence_metric = 0
+                logger.info(
+                    f"{Fore.YELLOW}Gen {generation}: No improvement for {self.generations_without_improvement} generations (Current MAPE: {-best_fitness*100:.2f}%){Style.RESET_ALL}"
+                )
+
+            if previous_best_fitness != float("-inf"):
+                relative_improvement = (best_fitness - previous_best_fitness) / (
+                    abs(previous_best_fitness) + 1e-10
+                )
+            else:
+                relative_improvement = 1.0
+
+            previous_best_fitness = best_fitness
+
             self.generations_data["Generasi"].append(generation)
             self.generations_data["Best Fitness"].append(best_fitness)
             self.generations_data["MAPE"].append(best_mape)
+            self.generations_data["Convergence"].append(convergence_metric)
 
             best_individual_data = {
                 "Parameter": best_individual,
@@ -188,7 +293,7 @@ class GAOptimizer:
             selected_population = self.selection(population, fitnesses)
 
             next_population = []
-            self.save_log(generation, -1, "crossover", "Crossover Phase")
+            # Crossover Phase
             for i in range(0, len(selected_population) - 1, 2):
                 parent1 = selected_population[i]
                 parent2 = selected_population[i + 1]
@@ -212,14 +317,17 @@ class GAOptimizer:
                 )
 
             mutated_population = []
-            self.save_log(generation, -1, "mutation", "Mutation Phase")
-            
-            # Adaptive mutation based on current generation
-            current_mutation_rate = mutation_rate * (1 - 0.5 * (generation / generations))
+            # Mutation Phase
+
+            current_mutation_rate = mutation_rate * (
+                1 - 0.5 * (generation / generations)
+            )
             self.generations_data["Mutation"].append(current_mutation_rate)
-            
+
             for i, ind in enumerate(next_population):
-                mutated = self.mutation(ind, current_mutation_rate, object_bounds, generation, generations)
+                mutated = self.mutation(
+                    ind, current_mutation_rate, object_bounds, generation, generations
+                )
                 mutation_info = {"Original": ind, "Mutated": mutated}
                 self.save_log(generation, i, "mutation", mutation_info)
                 mutated_population.append(mutated)
@@ -229,6 +337,21 @@ class GAOptimizer:
 
             population = mutated_population
 
+            if self.generations_without_improvement >= early_stopping_generations:
+                logger.info(
+                    f"{Fore.YELLOW}Early stopping at generation {generation} (No improvement for {early_stopping_generations} generations){Style.RESET_ALL}"
+                )
+                break
+
+            if (
+                convergence_metric < convergence_threshold
+                and generation > early_stopping_generations
+            ):
+                logger.info(
+                    f"{Fore.GREEN}Converged at generation {generation} (metric: {convergence_metric:.6f} < threshold: {convergence_threshold}){Style.RESET_ALL}"
+                )
+                break
+
         final_best_individual = max(best_performers, key=lambda x: x[1])[0]
         final_best_fitness = max(best_performers, key=lambda x: x[1])[1]
         final_best_mape = -final_best_fitness
@@ -236,8 +359,14 @@ class GAOptimizer:
             "Best Individual": final_best_individual,
             "Fitness": final_best_fitness,
             "MAPE": final_best_mape,
+            "Convergence": self.generations_without_improvement,
+            "Cache Hits": len(self.evaluation_cache),
         }
         self.save_log(generations, -1, "final", final_results)
+
+        logger.info(
+            f"{Fore.GREEN}Optimization complete - Best MAPE: {final_best_mape*100:.2f}% | Cached evaluations: {len(self.evaluation_cache)}{Style.RESET_ALL}"
+        )
 
         return final_best_individual, best_performers
 

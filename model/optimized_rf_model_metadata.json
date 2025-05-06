@@ -1,0 +1,50 @@
+{
+    "model_parameters": {
+        "n_estimators": 101,
+        "max_depth": 13,
+        "min_samples_split": 7,
+        "min_samples_leaf": 2,
+        "max_features": 0.9274237780910962,
+        "bootstrap": true,
+        "random_state": 42,
+        "n_jobs": -1
+    },
+    "features": [
+        "price",
+        "bedroom",
+        "bathroom",
+        "LT",
+        "LB",
+        "carport",
+        "kecamatan_encoded",
+        "price_per_m2_land",
+        "price_per_m2_building",
+        "building_efficiency",
+        "listing_age_days",
+        "fuzzy_area_quality",
+        "fuzzy_quality_score"
+    ],
+    "feature_importance": {
+        "price": 0.4027123379101481,
+        "bedroom": 1.3122867203700859e-05,
+        "bathroom": 1.6560488069077287e-05,
+        "LT": 0.00017188940865906483,
+        "LB": 0.00021222862998554755,
+        "carport": 0.0,
+        "kecamatan_encoded": 0.0001074590439508009,
+        "price_per_m2_land": 0.3806251826591832,
+        "price_per_m2_building": 0.2159384601184016,
+        "building_efficiency": 0.00011923773658900347,
+        "listing_age_days": 4.242871625422341e-05,
+        "fuzzy_area_quality": 2.405204105440529e-05,
+        "fuzzy_quality_score": 1.7040380501439238e-05
+    },
+    "evaluation_metrics": {
+        "mape": 0.011123798287039632,
+        "r2": 0.9996813919110837,
+        "rmse": 1089080269.4760573,
+        "mae": 350778786.00991946
+    },
+    "training_date": "2025-05-06 15:26:56",
+    "model_type": "RandomForestRegressor"
+}

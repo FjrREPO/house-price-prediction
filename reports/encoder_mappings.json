@@ -1,0 +1,41 @@
+{
+    "kecamatan": {
+        "type": "label",
+        "mapping": {
+            "Bantul": 0,
+            "Caturtunggal": 1,
+            "Cebongan": 2,
+            "Danurejan": 3,
+            "Demangan": 4,
+            "Gedong Tengen": 5,
+            "Gondokusuman": 6,
+            "Gondomanan": 7,
+            "Jetis": 8,
+            "Kaliurang": 9,
+            "Kotagede": 10,
+            "Kraton": 11,
+            "Kulonprogo": 12,
+            "Maguwoharjo": 13,
+            "Mantrijeron": 14,
+            "Mergangsan": 15,
+            "Minomartani": 16,
+            "Ngampilan": 17,
+            "Nologaten": 18,
+            "Pakualaman": 19,
+            "Pogung": 20,
+            "Purwomartani": 21,
+            "Seturan": 22,
+            "Sidoarum": 23,
+            "Sleman": 24,
+            "Tegalrejo": 25,
+            "Umbulharjo": 26,
+            "Wirobrajan": 27
+        }
+    },
+    "kabupaten_kota": {
+        "type": "label",
+        "mapping": {
+            "Yogyakarta": 0
+        }
+    }
+}

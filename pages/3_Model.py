@@ -5,690 +5,448 @@ import pickle
 import os
 import re
 import json
+import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_percentage_error
 import plotly.express as px
+import plotly.graph_objects as go
+from datetime import datetime
 
 # Set konfigurasi halaman
 st.set_page_config(
-    page_title="Pelatihan Model Prediksi Harga", page_icon="🧠", layout="wide"
+    page_title="Statistik dan History Training Model", page_icon="🧠", layout="wide"
 )
 
-st.title("🧠 Pelatihan Model Prediksi Harga Perumahan")
+# CSS untuk styling
+st.markdown("""
+<style>
+    .metric-card {
+        background-color: #f8f9fa;
+        border-radius: 5px;
+        padding: 15px;
+        box-shadow: 0 0 5px rgba(0,0,0,0.1);
+        margin-bottom: 10px;
+    }
+    .metric-value {
+        font-size: 24px;
+        font-weight: bold;
+        color: #0068c9;
+    }
+    .metric-label {
+        font-size: 14px;
+        color: #6c757d;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 24px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        white-space: pre-wrap;
+        background-color: #f8f9fa;
+        border-radius: 4px 4px 0 0;
+        gap: 1px;
+        padding-top: 10px;
+        padding-bottom: 10px;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #e6f2ff;
+        border-bottom: 2px solid #0068c9;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Helper functions
+def safe_format(value, format_style=None, decimal_places=4, thousands_sep=False):
+    """
+    Safely format a value with appropriate formatting based on the value type or specified format style.
+    
+    Args:
+        value: The value to format
+        format_style: Optional style specification ('percentage', 'r2', 'time', 'integer')
+        decimal_places: Number of decimal places for float values
+        thousands_sep: Whether to include thousands separators
+        
+    Returns:
+        Formatted string representation of the value
+    """
+    # Handle None or NaN values
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return "N/A"
+        
+    # Apply format based on style if specified
+    if format_style:
+        if format_style == 'percentage':
+            # Format as percentage with 2 decimal places
+            if isinstance(value, (int, float)):
+                return f"{value:.2f}"
+        elif format_style == 'r2':
+            # Format R² with 4 decimal places
+            if isinstance(value, (int, float)):
+                return f"{value:.4f}"
+        elif format_style == 'time':
+            # Format time with 2 decimal places
+            if isinstance(value, (int, float)):
+                return f"{value:.2f}"
+        elif format_style == 'integer':
+            # Always use thousands separator for integers
+            if isinstance(value, int):
+                return f"{value:,}"
+    
+    # Default formatting based on type
+    if isinstance(value, int):
+        if thousands_sep:
+            return f"{value:,}"
+        return str(value)
+    if isinstance(value, float):
+        format_str = f"{{:.{decimal_places}f}}"
+        return format_str.format(value)
+    return str(value)
+
+def load_model_metadata():
+    """Load model metadata from JSON file"""
+    metadata_path = "model/optimized_rf_model_metadata.json"
+    if os.path.exists(metadata_path):
+        with open(metadata_path, 'r') as f:
+            return json.load(f)
+    return None
+
+def load_model_params():
+    """Load detailed model parameters from text file"""
+    params_path = "model/optimized_rf_model_params.txt"
+    if os.path.exists(params_path):
+        with open(params_path, 'r') as f:
+            content = f.read()
+        return content
+    return None
+
+def load_model():
+    """Load the trained model"""
+    model_path = "model/optimized_rf_model.pkl"
+    if os.path.exists(model_path):
+        with open(model_path, 'rb') as f:
+            return pickle.load(f)
+    return None
+
+def check_evaluation_files():
+    """Check if evaluation files exist and return their paths"""
+    evaluation_dir = "model/evaluation"
+    files = {
+        "feature_importance": None,
+        "model_comparison": None,
+        "prediction_scatter": None,
+        "residual_plot": None
+    }
+    
+    if os.path.exists(os.path.join(evaluation_dir, "feature_importance.png")):
+        files["feature_importance"] = os.path.join(evaluation_dir, "feature_importance.png")
+    
+    if os.path.exists(os.path.join(evaluation_dir, "rf_model_comparison.png")):
+        files["model_comparison"] = os.path.join(evaluation_dir, "rf_model_comparison.png")
+    
+    if os.path.exists(os.path.join(evaluation_dir, "prediction_scatter.png")):
+        files["prediction_scatter"] = os.path.join(evaluation_dir, "prediction_scatter.png")
+    
+    if os.path.exists(os.path.join(evaluation_dir, "residual_plot.png")):
+        files["residual_plot"] = os.path.join(evaluation_dir, "residual_plot.png")
+    
+    return files
+
+def display_metric_card(title, value, unit="", help_text=""):
+    """Display a metric in a styled card"""
+    value_display = value
+    if unit and value != "N/A" and not isinstance(value, str):
+        value_display = f"{value} {unit}"
+    elif unit and value != "N/A":
+        value_display = f"{value}{unit}"
+    
+    st.markdown(f"""
+    <div class="metric-card">
+        <div class="metric-label">{title}</div>
+        <div class="metric-value">{value_display}</div>
+        <div class="metric-label" style="font-size: 12px; margin-top: 5px;">{help_text}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# Main interface
+st.title("🧠 Statistik dan History Training Model")
 st.markdown(
     """
-    Halaman ini memungkinkan Anda untuk melatih model prediksi harga perumahan menggunakan 
-    algoritma Random Forest dengan optimasi Algoritma Genetika (GA). Anda dapat menyesuaikan 
-    parameter pelatihan dan melihat perbandingan performa.
+    Halaman ini menampilkan statistik dan history training model yang digunakan untuk memprediksi harga rumah.
+    Model yang digunakan adalah Random Forest Regressor. Model ini dilatih menggunakan data yang telah dibersihkan dan diproses sebelumnya.
     """
 )
 
-
-# Fungsi-fungsi model RF
-def predict_price_rf(
-    model, bedroom_val, bathroom_val, LT_val, LB_val, fallback_value=None
-):
-    input_data = pd.DataFrame(
-        {
-            "bedroom": [bedroom_val],
-            "bathroom": [bathroom_val],
-            "LT": [LT_val],
-            "LB": [LB_val],
-        }
-    )
-    try:
-        prediction = model.predict(input_data)[0]
-        return prediction
-    except Exception as e:
-        st.error(f"Kesalahan prediksi RF: {e}")
-        return fallback_value if fallback_value is not None else 0
-
-
-def train_base_rf_model(X, y):
-    base_model = RandomForestRegressor(n_estimators=100, random_state=42)
-    base_model.fit(X, y)
-    return base_model
-
-
-def evaluate_rf_model(model, X, y):
-    predictions = []
-    for i in range(len(X)):
-        prediction = predict_price_rf(
-            model,
-            X.iloc[i]["bedroom"],
-            X.iloc[i]["bathroom"],
-            X.iloc[i]["LT"],
-            X.iloc[i]["LB"],
-            fallback_value=y.iloc[i],
-        )
-        predictions.append(prediction)
-    mape = mean_absolute_percentage_error(y, predictions)
-    return mape, predictions
-
-
-def train_optimized_rf_model(X, y, params):
-    n_estimators = int(params[0])
-    max_depth = int(params[1]) if params[1] > 0 else None
-    min_samples_split = int(params[2])
-    min_samples_leaf = int(params[3])
-    model = RandomForestRegressor(
-        n_estimators=n_estimators,
-        max_depth=max_depth,
-        min_samples_split=min_samples_split,
-        min_samples_leaf=min_samples_leaf,
-        random_state=42,
-    )
-    model.fit(X, y)
-    return model
-
-
-# Implementasi algoritma genetika
-class GAOptimizer:
-    def __init__(self):
-        self.initial_population = {"Individu": [], "Parameter": []}
-        self.generations_data = {
-            "Generasi": [],
-            "Best Fitness": [],
-            "MAPE": [],
-            "Mutation": [],
-        }
-        self.evaluation_data = {}
-        self.best_individuals = {}
-
-    def save_log(self, generation, individual_index, log_type, log_content):
-        if log_type == "initial":
-            self.initial_population.setdefault("Individu", []).append(
-                f"Individu {individual_index + 1}"
-            )
-            self.initial_population.setdefault("Parameter", []).append(log_content)
-
-        elif log_type == "fitness":
-            gen_data = self.evaluation_data.setdefault(
-                generation, {"Individu": [], "MAPE (%)": [], "Fitness": []}
-            )
-            gen_data["Individu"].append(f"Individu {individual_index + 1}")
-            gen_data["MAPE (%)"].append(log_content.get("MAPE"))
-            gen_data["Fitness"].append(log_content.get("Fitness"))
-
-        elif log_type in ["crossover", "mutation"]:
-            gen_data = self.generations_data.setdefault(generation, {})
-            gen_data.setdefault(log_type.capitalize(), []).append(log_content)
-
-        elif log_type == "elitism":
-            self.best_individuals[generation] = log_content
-
-        elif log_type == "final":
-            self.generations_data.setdefault("Generasi", []).append(generation)
-            self.generations_data.setdefault("Best Fitness", []).append(
-                log_content.get("Best Fitness")
-            )
-            self.generations_data.setdefault("MAPE", []).append(log_content.get("MAPE"))
-
-    def evaluate_rf_model(self, params, data, price_target):
-        n_estimators, max_depth, min_samples_split, min_samples_leaf = params
-
-        n_estimators = int(n_estimators)
-        max_depth = int(max_depth) if max_depth > 0 else None
-        min_samples_split = int(min_samples_split)
-        min_samples_leaf = int(min_samples_leaf)
-
-        model = train_optimized_rf_model(data, price_target, params)
-
-        predictions = []
-        for i in range(len(data)):
-            prediction = predict_price_rf(
-                model,
-                data.iloc[i]["bedroom"],
-                data.iloc[i]["bathroom"],
-                data.iloc[i]["LT"],
-                data.iloc[i]["LB"],
-                fallback_value=price_target.iloc[i],
-            )
-            predictions.append(prediction)
-
-        mape = mean_absolute_percentage_error(price_target, predictions)
-        return mape
-
-    def fitness_function(self, params, data, price_target):
-        return -self.evaluate_rf_model(params, data, price_target)
-
-    def create_initial_population(self, size, object_bounds):
-        population = []
-        for _ in range(size):
-            individual = tuple(
-                random.uniform(lower_bound, upper_bound)
-                for lower_bound, upper_bound in object_bounds
-            )
-            population.append(individual)
-        return population
-
-    def selection(self, population, fitnesses, tournament_size=3):
-        selected = []
-        for _ in range(len(population)):
-            tournament = random.sample(
-                list(zip(population, fitnesses)), tournament_size
-            )
-            winner = max(tournament, key=lambda x: x[1])[0]
-            selected.append(winner)
-        return selected
-
-    def crossover(self, parent1, parent2):
-        alpha = random.random()
-        child1 = tuple(
-            alpha * p1 + (1 - alpha) * p2 for p1, p2 in zip(parent1, parent2)
-        )
-        child2 = tuple(
-            alpha * p2 + (1 - alpha) * p1 for p1, p2 in zip(parent1, parent2)
-        )
-        return child1, child2
-
-    def mutation(self, individual, mutation_rate, object_bounds):
-        individual = list(individual)
-        for i in range(len(individual)):
-            if random.random() < mutation_rate:
-                lower_bound, upper_bound = object_bounds[i]
-                mutation_amount = random.uniform(-0.1, 0.1) * (
-                    upper_bound - lower_bound
-                )
-                individual[i] += mutation_amount
-                individual[i] = max(min(individual[i], upper_bound), lower_bound)
-        return tuple(individual)
-
-    def genetic_algorithm(
-        self,
-        population_size,
-        object_bounds,
-        generations,
-        mutation_rate,
-        data,
-        price_target,
-        progress_bar=None,
-        status_text=None,
-    ):
-        population = self.create_initial_population(population_size, object_bounds)
-
-        for i, ind in enumerate(population):
-            self.save_log(
-                generation=0, individual_index=i, log_type="initial", log_content=ind
-            )
-
-        best_performers = []
-
-        for generation in range(1, generations + 1):
-            if status_text:
-                status_text.text(f"Generasi {generation}/{generations}")
-            if progress_bar:
-                progress_bar.progress(generation / generations)
-
-            fitnesses = [
-                self.fitness_function(ind, data, price_target=price_target)
-                for ind in population
-            ]
-            for i, (ind, fitness) in enumerate(zip(population, fitnesses)):
-                log_content = {"MAPE": -fitness, "Fitness": fitness}
-                self.save_log(generation, i, "fitness", log_content)
-
-            best_index = fitnesses.index(max(fitnesses))
-            best_individual = population[best_index]
-            best_fitness = fitnesses[best_index]
-            best_mape = -best_fitness
-            best_performers.append((best_individual, best_fitness))
-
-            self.generations_data["Generasi"].append(generation)
-            self.generations_data["Best Fitness"].append(best_fitness)
-            self.generations_data["MAPE"].append(best_mape)
-
-            best_individual_data = {
-                "Parameter": best_individual,
-                "Fitness": best_fitness,
-            }
-            self.save_log(generation, best_index, "elitism", best_individual_data)
-
-            selected_population = self.selection(population, fitnesses)
-
-            next_population = []
-            self.save_log(generation, -1, "crossover", "Fase Crossover")
-            for i in range(0, len(selected_population) - 1, 2):
-                parent1 = selected_population[i]
-                parent2 = selected_population[i + 1]
-                child1, child2 = self.crossover(parent1, parent2)
-                crossover_info = {
-                    "Parent1": parent1,
-                    "Parent2": parent2,
-                    "Child1": child1,
-                    "Child2": child2,
-                }
-                self.save_log(generation, i, "crossover", crossover_info)
-                next_population.extend([child1, child2])
-
-            if len(selected_population) % 2 != 0:
-                next_population.append(selected_population[-1])
-                self.save_log(
-                    generation,
-                    -1,
-                    "crossover",
-                    f"Individu ganjil terbawa ke generasi berikutnya: {selected_population[-1]}",
-                )
-
-            mutated_population = []
-            self.save_log(generation, -1, "mutation", "Fase Mutasi")
-            for i, ind in enumerate(next_population):
-                mutated = self.mutation(ind, mutation_rate, object_bounds)
-                mutation_info = {"Original": ind, "Mutated": mutated}
-                self.save_log(generation, i, "mutation", mutation_info)
-                mutated_population.append(mutated)
-
-            mutated_population[0] = best_individual
-            self.save_log(generation, 0, "elitism", best_individual)
-
-            population = mutated_population
-
-        final_best_individual = max(best_performers, key=lambda x: x[1])[0]
-        final_best_fitness = max(best_performers, key=lambda x: x[1])[1]
-        final_best_mape = -final_best_fitness
-        final_results = {
-            "Best Individual": final_best_individual,
-            "Fitness": final_best_fitness,
-            "MAPE": final_best_mape,
-        }
-        self.save_log(generations, -1, "final", final_results)
-
-        return final_best_individual, best_performers
-
-    def save_logs_to_json(self, file_path):
-        data = {
-            "initial_population": self.initial_population,
-            "evaluation_data": self.evaluation_data,
-            "generations_data": self.generations_data,
-            "best_individuals": self.best_individuals,
-        }
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-
-
-# Fungsi pemrosesan data
-def preprocess_data(df):
-    df_processed = df.copy()
-
-    def convert_to_numeric(value):
-        if pd.isna(value) or not isinstance(value, str):
-            return np.nan
-
-        try:
-            value_numeric = re.sub(r"Rp\s?", "", value)
-
-            if "Miliar" in value_numeric:
-                value_numeric = (
-                    float(re.sub(r"\s?Miliar", "", value_numeric).replace(",", "."))
-                    * 1e9
-                )
-            elif "Juta" in value_numeric:
-                value_numeric = (
-                    float(re.sub(r"\s?Juta", "", value_numeric).replace(",", ".")) * 1e6
-                )
-            else:
-                return np.nan
-            return value_numeric
-        except ValueError:
-            return np.nan
-
-    def extract_area(area_str):
-        if pd.isna(area_str) or not isinstance(area_str, str):
-            return np.nan
-
-        match = re.search(r":\s*(\d+)\s*m²", area_str)
-        if match:
-            return float(match.group(1))
-        return np.nan
-
-    def extract_location(loc_str):
-        if pd.isna(loc_str) or not isinstance(loc_str, str):
-            return "Tidak Diketahui"
-
-        parts = loc_str.split(",")
-        if len(parts) > 1:
-            return parts[1].strip()
-        return parts[0].strip()
-
-    # Konversi kolom
-    df_processed["price"] = df_processed["price"].apply(convert_to_numeric)
-    df_processed["LT"] = df_processed["LT"].apply(extract_area)
-    df_processed["LB"] = df_processed["LB"].apply(extract_area)
-    df_processed["kabupaten_kota"] = df_processed["location"].apply(extract_location)
-
-    # Drop missing values
-    df_processed = df_processed.dropna(
-        subset=["price", "LT", "LB", "bedroom", "bathroom"]
-    )
-
-    # Konversi tipe data
-    df_processed["bedroom"] = df_processed["bedroom"].astype(float)
-    df_processed["bathroom"] = df_processed["bathroom"].astype(float)
-
-    return df_processed
-
-
-def remove_outliers(df, columns):
-    df_clean = df.copy()
-
-    for col in columns:
-        if col in df_clean.columns:
-            Q1 = df_clean[col].quantile(0.25)
-            Q3 = df_clean[col].quantile(0.75)
-            IQR = Q3 - Q1
-
-            lower_bound = Q1 - 1.5 * IQR
-            upper_bound = Q3 + 1.5 * IQR
-
-            df_clean = df_clean[
-                (df_clean[col] >= lower_bound) & (df_clean[col] <= upper_bound)
-            ]
-
-    return df_clean
-
-
-# Fungsi memplot hasil
-def plot_training_progress(ga_optimizer):
-    if not ga_optimizer.generations_data["Generasi"]:
-        st.warning("Belum ada data pelatihan")
-        return
-
-    # Plot MAPE per generasi
-    fig = px.line(
-        x=ga_optimizer.generations_data["Generasi"],
-        y=ga_optimizer.generations_data["MAPE"],
-        labels={"x": "Generasi", "y": "MAPE (%)"},
-        title="Perkembangan MAPE per Generasi",
-    )
-    fig.update_traces(mode="lines+markers")
-    st.plotly_chart(fig, use_container_width=True)
-
-
-def plot_rf_comparison(base_mape, optimized_mape):
-    models = ["RF Dasar", "RF Teroptimasi"]
-    mapes = [base_mape, optimized_mape]
-
-    fig = px.bar(
-        x=models,
-        y=[m * 100 for m in mapes],
-        labels={"x": "Model", "y": "MAPE (%)"},
-        title="Perbandingan Performa Model Random Forest",
-    )
-
-    # Tambahkan teks nilai di atas bar
-    for i, mape in enumerate(mapes):
-        fig.add_annotation(
-            x=models[i],
-            y=mape * 100,
-            text=f"{mape*100:.2f}%",
-            showarrow=False,
-            yshift=10,
-        )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-
-def save_model(model, filename="optimized_rf_model.pkl"):
-    # Simpan model ke file
-    model_dir = "model"
-    os.makedirs(model_dir, exist_ok=True)
-    model_path = os.path.join(model_dir, filename)
-
-    with open(model_path, "wb") as f:
-        pickle.dump(model, f)
-
-    st.success(f"Model berhasil disimpan ke {model_path}")
-    return model_path
-
-
-# Tambahkan fungsi untuk random
-import random
-
-
-# Halaman utama
-@st.cache_data
-def load_data():
-    try:
-        data_path = os.path.join("dataset", "houses-cleaned.csv")
-        df = pd.read_csv(data_path)
-        return df
-    except FileNotFoundError:
-        st.error(
-            "File data tidak ditemukan. Silakan periksa jalur ke houses-cleaned.csv"
-        )
-        return pd.DataFrame()
-    except Exception as e:
-        st.error(f"Kesalahan memuat data: {e}")
-        return pd.DataFrame()
-
-
-# Sidebar untuk parameter pelatihan
-st.sidebar.header("Parameter Pelatihan")
-
-tab1, tab2 = st.tabs(["📊 Pelatihan Model", "📈 Hasil & Perbandingan"])
-
+# Check if model exists
+model_exists = os.path.exists("model/optimized_rf_model.pkl")
+
+if not model_exists:
+    st.warning("⚠️ Model belum dilatih. Silakan latih model terlebih dahulu di halaman Training Model.")
+    st.stop()
+
+# Load model metadata and other resources
+with st.spinner("Memuat data model..."):
+    metadata = load_model_metadata()
+    model_params = load_model_params()
+    evaluation_files = check_evaluation_files()
+    model = load_model()
+
+# Create tabs for different sections
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📊 Model Overview", 
+    "📈 Performance Metrics", 
+    "🔍 Feature Analysis", 
+    "🔄 Model Comparison"
+])
+
+# Tab 1: Model Overview
 with tab1:
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.subheader("Data dan Parameter")
-
-        df = load_data()
-        if not df.empty:
-            st.write(f"Jumlah total data: {len(df)}")
-
-            # Tampilkan dataset yang dimuat
-            st.write("Pratinjau Data:")
-            st.dataframe(df.head(5), use_container_width=True)
-
-            # Preprocessing data
-            with st.spinner("Memproses data..."):
-                df_preprocessed = preprocess_data(df)
-                st.write(f"Data setelah preprocessing: {len(df_preprocessed)} baris")
-
-            # Pilih region
-            regions = ["Semua Wilayah"] + sorted(
-                df_preprocessed["kabupaten_kota"].unique().tolist()
-            )
-            selected_region = st.selectbox("Pilih Wilayah untuk Pelatihan", regions)
-
-            if selected_region != "Semua Wilayah":
-                filtered_df = df_preprocessed[
-                    df_preprocessed["kabupaten_kota"] == selected_region
-                ]
-            else:
-                filtered_df = df_preprocessed
-
-            st.write(f"Data untuk pelatihan: {len(filtered_df)} baris")
-
-            # Opsi untuk menghapus outlier
-            remove_outliers_option = st.checkbox("Hapus Outlier", value=True)
-
-            if remove_outliers_option:
-                columns_to_check = ["price", "bedroom", "bathroom", "LT", "LB"]
-                filtered_df = remove_outliers(filtered_df, columns_to_check)
-                st.write(f"Data setelah menghapus outlier: {len(filtered_df)} baris")
-
-    with col2:
-        st.subheader("Parameter Algoritma Genetika")
-
-        population_size = st.slider("Ukuran Populasi", 10, 100, 30)
-        generations = st.slider("Jumlah Generasi", 1, 20, 5)
-        mutation_rate = st.slider("Tingkat Mutasi", 0.0, 1.0, 0.35)
-
-        st.write("Batas Parameter Random Forest:")
-        col1, col2 = st.columns(2)
-
-        with col1:
-            n_estimators_min = st.number_input("n_estimators (min)", 10, 100, 50)
-            n_estimators_max = st.number_input(
-                "n_estimators (max)", n_estimators_min, 500, 200
-            )
-
-            max_depth_min = st.number_input("max_depth (min)", 1, 10, 5)
-            max_depth_max = st.number_input("max_depth (max)", max_depth_min, 50, 30)
-
-        with col2:
-            min_samples_split_min = st.number_input("min_samples_split (min)", 2, 5, 2)
-            min_samples_split_max = st.number_input(
-                "min_samples_split (max)", min_samples_split_min, 20, 10
-            )
-
-            min_samples_leaf_min = st.number_input("min_samples_leaf (min)", 1, 3, 1)
-            min_samples_leaf_max = st.number_input(
-                "min_samples_leaf (max)", min_samples_leaf_min, 10, 5
-            )
-
-    if not df.empty and len(filtered_df) > 0:
-        # Siapkan data untuk pelatihan
-        X = filtered_df[["bedroom", "bathroom", "LT", "LB"]]
-        y = filtered_df["price"]
-
-        # Tombol untuk memulai pelatihan
-        if st.button("Mulai Pelatihan Model", type="primary"):
-            # Melatih model RF dasar
-            with st.spinner("Melatih model Random Forest dasar..."):
-                base_rf_model = train_base_rf_model(X, y)
-                base_mape, base_predictions = evaluate_rf_model(base_rf_model, X, y)
-                st.success(
-                    f"Model RF dasar selesai dilatih. MAPE: {base_mape*100:.2f}%"
-                )
-
-            # Melatih model RF yang dioptimasi dengan GA
-            with st.spinner("Mengoptimasi model dengan Algoritma Genetika..."):
-                object_bounds = [
-                    (n_estimators_min, n_estimators_max),
-                    (max_depth_min, max_depth_max),
-                    (min_samples_split_min, min_samples_split_max),
-                    (min_samples_leaf_min, min_samples_leaf_max),
-                ]
-
-                ga = GAOptimizer()
-
-                # Tambahkan progress bar
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-
-                best_solution, best_performers = ga.genetic_algorithm(
-                    population_size,
-                    object_bounds,
-                    generations,
-                    mutation_rate,
-                    X,
-                    price_target=y,
-                    progress_bar=progress_bar,
-                    status_text=status_text,
-                )
-
-                # Tampilkan parameter terbaik
-                n_estimators = int(best_solution[0])
-                max_depth = int(best_solution[1])
-                min_samples_split = int(best_solution[2])
-                min_samples_leaf = int(best_solution[3])
-
-                st.subheader("Parameter Terbaik:")
-                param_cols = st.columns(4)
-                param_cols[0].metric("n_estimators", n_estimators)
-                param_cols[1].metric("max_depth", max_depth)
-                param_cols[2].metric("min_samples_split", min_samples_split)
-                param_cols[3].metric("min_samples_leaf", min_samples_leaf)
-
-                # Latih model dengan parameter terbaik
-                optimized_rf_model = train_optimized_rf_model(X, y, best_solution)
-                optimized_rf_mape, optimized_predictions = evaluate_rf_model(
-                    optimized_rf_model, X, y
-                )
-
-                improvement = ((base_mape - optimized_rf_mape) / base_mape) * 100
-
-                st.success(
-                    f"""
-                Model RF teroptimasi selesai dilatih. 
-                - MAPE: {optimized_rf_mape*100:.2f}%
-                - Peningkatan: {improvement:.2f}%
-                """
-                )
-
-                # Simpan model
-                model_path = save_model(optimized_rf_model)
-
-                # Simpan hasil optimasi
-                ga.save_logs_to_json(os.path.join("model", "ga_optimization_logs.json"))
-
-                # Simpan hasil ke session_state untuk tab perbandingan
-                st.session_state["base_mape"] = base_mape
-                st.session_state["optimized_mape"] = optimized_rf_mape
-                st.session_state["ga_optimizer"] = ga
-                st.session_state["best_solution"] = best_solution
-                st.session_state["model_trained"] = True
-
-                # Tampilkan grafik MAPE per generasi
-                st.subheader("Perkembangan MAPE selama Pelatihan")
-                plot_training_progress(ga)
-
-                # Tampilkan grafik perbandingan
-                st.subheader("Perbandingan Model")
-                plot_rf_comparison(base_mape, optimized_rf_mape)
-    else:
-        st.warning(
-            "Tidak ada data tersedia untuk pelatihan. Silakan periksa data dan filter."
-        )
-
-with tab2:
-    st.subheader("Hasil dan Perbandingan Model")
-
-    # Cek apakah model sudah dilatih
-    if "model_trained" in st.session_state and st.session_state["model_trained"]:
-        # Tampilkan parameter terbaik
-        st.subheader("Parameter Terbaik Model Random Forest Teroptimasi")
-        best_solution = st.session_state["best_solution"]
-        n_estimators = int(best_solution[0])
-        max_depth = int(best_solution[1])
-        min_samples_split = int(best_solution[2])
-        min_samples_leaf = int(best_solution[3])
-
-        param_cols = st.columns(4)
-        param_cols[0].metric("n_estimators", n_estimators)
-        param_cols[1].metric("max_depth", max_depth)
-        param_cols[2].metric("min_samples_split", min_samples_split)
-        param_cols[3].metric("min_samples_leaf", min_samples_leaf)
-
-        # Tampilkan perbandingan MAPE
-        base_mape = st.session_state["base_mape"]
-        optimized_mape = st.session_state["optimized_mape"]
-        improvement = ((base_mape - optimized_mape) / base_mape) * 100
-
+    st.header("Model Overview")
+    
+    if metadata:
         col1, col2, col3 = st.columns(3)
-        col1.metric("MAPE Model Dasar", f"{base_mape*100:.2f}%")
-        col2.metric("MAPE Model Teroptimasi", f"{optimized_mape*100:.2f}%")
-        col3.metric("Peningkatan", f"{improvement:.2f}%")
-
-        # Tampilkan grafik perbandingan
-        plot_rf_comparison(base_mape, optimized_mape)
-
-        # Tampilkan grafik progres pelatihan
-        if "ga_optimizer" in st.session_state:
-            plot_training_progress(st.session_state["ga_optimizer"])
-
-        # Tampilkan daftar file model yang tersedia
-        st.subheader("File Model Tersedia")
-        model_files = []
-        model_dir = "model"
-        if os.path.exists(model_dir):
-            model_files = [f for f in os.listdir(model_dir) if f.endswith(".pkl")]
-
-        if model_files:
-            for model_file in model_files:
-                st.write(f"📄 {model_file}")
-        else:
-            st.info("Tidak ada file model yang tersimpan.")
+        
+        with col1:
+            display_metric_card(
+                "MAPE Score", 
+                safe_format(metadata.get('mape', 'N/A'), format_style='percentage'), 
+                unit="%",
+                help_text="Mean Absolute Percentage Error - lower is better"
+            )
+        
+        with col2:
+            display_metric_card(
+                "Training Date", 
+                metadata.get('training_date', 'Unknown'), 
+                help_text="When the model was last trained"
+            )
+        
+        with col3:
+            display_metric_card(
+                "Data Points", 
+                safe_format(metadata.get('data_points', 'N/A'), format_style='integer'), 
+                help_text="Number of samples used for training"
+            )
+        
+        st.subheader("Model Details")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("### Key Parameters")
+            params = metadata.get('parameters', {})
+            for param, value in params.items():
+                st.write(f"**{param}:** {value}")
+        
+        with col2:
+            st.markdown("### Training Metrics")
+            metrics = metadata.get('metrics', {})
+            if metrics:
+                for metric, value in metrics.items():
+                    if metric != 'mape':  # MAPE already displayed above
+                        format_style = None
+                        # Set format style based on metric name
+                        if 'r2' in metric.lower() or 'score' in metric.lower():
+                            format_style = 'r2'
+                        elif 'time' in metric.lower():
+                            format_style = 'time'
+                        elif 'percentage' in metric.lower() or 'error' in metric.lower():
+                            format_style = 'percentage'
+                        # Format and display the metric
+                        st.write(f"**{metric}:** {safe_format(value, format_style=format_style)}")
+            
+            # Time metrics
+            time_metrics = metadata.get('training_time', {})
+            if time_metrics:
+                st.markdown("### Training Time")
+                st.write(f"**Total time:** {safe_format(time_metrics.get('total', 'N/A'), format_style='time')} seconds")
+                st.write(f"**Optimization time:** {safe_format(time_metrics.get('optimization', 'N/A'), format_style='time')} seconds")
+        
+        if model_params:
+            with st.expander("Detailed Model Parameters"):
+                st.code(model_params, language="text")
     else:
-        st.info(
-            "Belum ada model yang dilatih. Silakan ke tab 'Pelatihan Model' untuk melatih model."
-        )
+        st.error("Model metadata not found. The model may not have been properly trained.")
 
-# Footer
-st.markdown("---")
-st.markdown(
-    "Dashboard Pelatihan Model Prediksi Harga Perumahan | By: Data Science Team"
-)
+# Tab 2: Performance Metrics
+with tab2:
+    st.header("Performance Metrics")
+    
+    if metadata:
+        # Performance metrics visualization
+        metrics = metadata.get('metrics', {})
+        if metrics:
+            # Create a bar chart for metrics comparison
+            metric_df = pd.DataFrame({
+                'Metric': list(metrics.keys()),
+                'Value': list(metrics.values())
+            })
+            
+            fig = px.bar(
+                metric_df, 
+                x='Metric', 
+                y='Value', 
+                title='Model Performance Metrics',
+                color='Value',
+                color_continuous_scale='blues'
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # Display prediction scatter plot if available
+        if evaluation_files["prediction_scatter"]:
+            st.subheader("Actual vs Predicted Values")
+            st.image(evaluation_files["prediction_scatter"], use_column_width=True)
+        
+        # Display residual plot if available
+        if evaluation_files["residual_plot"]:
+            st.subheader("Residual Plot")
+            st.image(evaluation_files["residual_plot"], use_column_width=True)
+            
+        # If we don't have those plots but have the model, we could generate them
+        if model and (not evaluation_files["prediction_scatter"] or not evaluation_files["residual_plot"]):
+            st.info("Some visualization plots are missing. You may need to regenerate them by evaluating the model.")
+    else:
+        st.error("Model performance metrics not found. The model may not have been properly evaluated.")
+
+# Tab 3: Feature Analysis
+with tab3:
+    st.header("Feature Analysis")
+    
+    if evaluation_files["feature_importance"]:
+        st.subheader("Feature Importance")
+        st.image(evaluation_files["feature_importance"], use_column_width=True)
+        
+        # If we have the model, we can display more detailed feature importance
+        if model and hasattr(model, 'feature_importances_'):
+            try:
+                # Load the feature names from metadata if available
+                feature_names = metadata.get('feature_names', [f"Feature {i}" for i in range(len(model.feature_importances_))])
+                
+                # Create a DataFrame for the feature importances
+                fi_df = pd.DataFrame({
+                    'Feature': feature_names,
+                    'Importance': model.feature_importances_
+                }).sort_values('Importance', ascending=False)
+                
+                # Display as a table
+                st.subheader("Feature Importance Values")
+                st.dataframe(fi_df, use_container_width=True)
+                
+                # Interactive bar chart
+                fig = px.bar(
+                    fi_df.head(15), 
+                    x='Importance', 
+                    y='Feature',
+                    orientation='h',
+                    title='Top 15 Most Important Features',
+                    color='Importance',
+                    color_continuous_scale='blues'
+                )
+                fig.update_layout(yaxis={'categoryorder': 'total ascending'})
+                st.plotly_chart(fig, use_container_width=True)
+            except Exception as e:
+                st.error(f"Error generating feature importance plot: {str(e)}")
+    else:
+        st.warning("Feature importance visualization not found. You may need to regenerate it by evaluating the model.")
+
+# Tab 4: Model Comparison
+with tab4:
+    st.header("Model Comparison")
+    
+    if evaluation_files["model_comparison"]:
+        st.subheader("Base vs Optimized Model Performance")
+        st.image(evaluation_files["model_comparison"], use_column_width=True)
+    
+    # If we have comparison data in the metadata
+    if metadata and 'comparison' in metadata:
+        comparison = metadata['comparison']
+        
+        # Create comparison dataframe
+        models = []
+        mapes = []
+        r2s = []
+        
+        if 'base_model' in comparison:
+            models.append('Base Model')
+            mapes.append(comparison['base_model'].get('mape', 0))
+            r2s.append(comparison['base_model'].get('r2', 0))
+        
+        if 'optimized_model' in comparison:
+            models.append('Optimized Model')
+            mapes.append(comparison['optimized_model'].get('mape', 0))
+            r2s.append(comparison['optimized_model'].get('r2', 0))
+        
+        if models:
+            comp_df = pd.DataFrame({
+                'Model': models,
+                'MAPE': mapes,
+                'R² Score': r2s
+            })
+            
+            # Calculate improvement percentage
+            if len(models) > 1:
+                improvement = ((mapes[0] - mapes[1]) / mapes[0]) * 100 if mapes[0] != 0 else 0
+                st.metric(
+                    label="Improvement in MAPE", 
+                    value=f"{safe_format(improvement, format_style='percentage')}%", 
+                    delta=f"{safe_format(improvement, format_style='percentage')}%"
+                )
+            
+            # Display comparison chart
+            fig = go.Figure()
+            
+            fig.add_trace(go.Bar(
+                x=comp_df['Model'],
+                y=comp_df['MAPE'],
+                name='MAPE (lower is better)',
+                marker_color='indianred'
+            ))
+            
+            fig.add_trace(go.Bar(
+                x=comp_df['Model'],
+                y=comp_df['R² Score'],
+                name='R² Score (higher is better)',
+                marker_color='lightsalmon'
+            ))
+            
+            fig.update_layout(
+                title_text='Model Performance Comparison',
+                xaxis_title='Model',
+                yaxis_title='Score',
+                barmode='group'
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Display as table as well
+            st.dataframe(comp_df, use_container_width=True)
+    else:
+        st.warning("Model comparison data not found. You may need to compare the models by evaluating them.")
+
+# Sidebar with additional information and actions
+with st.sidebar:
+    st.header("Model Information")
+    
+    if metadata:
+        st.info(f"""
+        **Model Version**: {metadata.get('version', 'v1.0')}
+        **Model Type**: Random Forest Regressor
+        **Training Date**: {metadata.get('training_date', 'Unknown')}
+        **MAPE Score**: {safe_format(metadata.get('mape', 'N/A'), format_style='percentage')}%
+        """)
+        
+        if 'data_split' in metadata:
+            split = metadata['data_split']
+            st.markdown("### Data Split")
+            st.write(f"**Training**: {safe_format(split.get('train', 'N/A'), format_style='integer')}")
+            st.write(f"**Validation**: {safe_format(split.get('val', 'N/A'), format_style='integer')}")
+            st.write(f"**Test**: {safe_format(split.get('test', 'N/A'), format_style='integer')}")
+    else:
+        st.warning("No model metadata available")
+    
+    st.markdown("---")
+    st.markdown("### Actions")
+    
+    # Button to refresh model stats if model was retrained
+    if st.button("🔄 Refresh Model Statistics"):
+        st.experimental_rerun()
+        
+    st.caption("This page displays statistics and results from the trained model. To train or retrain models, use the training functionality in your notebook or scripts.")
