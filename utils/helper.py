@@ -80,18 +80,6 @@ Z_SCORE_THRESHOLDS = {
 def select_features(
     X: pd.DataFrame, y: pd.Series, method: str = "f_regression", k: int = None
 ) -> Tuple[pd.DataFrame, List[str]]:
-    """
-    Select the most important features based on statistical tests.
-
-    Args:
-        X: Feature DataFrame
-        y: Target variable
-        method: Feature selection method ('f_regression' or 'mutual_info')
-        k: Number of features to select (if None, selects half of available features)
-
-    Returns:
-        Tuple of (DataFrame with selected features, list of selected feature names)
-    """
     if k is None:
         k = max(1, X.shape[1] // 2)
 
@@ -137,19 +125,6 @@ def scale_features(
     fit_scalers: bool = True,
     scalers: Dict[str, Any] = None,
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-    """
-    Scale features using appropriate scalers.
-
-    Args:
-        df: DataFrame to scale
-        price_cols: List of price-related columns to scale with RobustScaler
-        numeric_cols: List of numeric columns to scale with StandardScaler
-        fit_scalers: Whether to fit new scalers or use provided ones
-        scalers: Dictionary of pre-fitted scalers (used when fit_scalers=False)
-
-    Returns:
-        Tuple of (DataFrame with scaled features, dictionary of fitted scalers)
-    """
     df_scaled = df.copy()
 
     if price_cols is None:
@@ -214,17 +189,6 @@ def scale_features(
 def remove_outliers(
     df: pd.DataFrame, columns: List[str], method: str = "both"
 ) -> pd.DataFrame:
-    """
-    Remove outliers from the dataset using IQR and/or Z-score methods.
-
-    Args:
-        df: DataFrame to process
-        columns: List of column names to check for outliers
-        method: Outlier detection method ('iqr', 'zscore', or 'both')
-
-    Returns:
-        DataFrame with outliers removed
-    """
     df_clean = df.copy()
     original_count = len(df_clean)
 
@@ -285,17 +249,6 @@ def remove_outliers(
 def validate_dataframe(
     df: pd.DataFrame, required_columns: List[str], raise_exception: bool = False
 ) -> Tuple[bool, str]:
-    """
-    Validate the input DataFrame for required columns and data quality.
-
-    Args:
-        df: DataFrame to validate
-        required_columns: List of column names that must be present
-
-    Returns:
-        Tuple of (is_valid, error_message)
-    """
-
     if df.empty:
         error_msg = "DataFrame is empty"
         if raise_exception:
@@ -341,16 +294,6 @@ def validate_dataframe(
 
 
 def convert_to_numeric(value: Union[str, int, float, None]) -> Optional[float]:
-    """
-    Convert price string to numeric value.
-
-    Args:
-        value: Price value to convert, which can be a formatted string or numeric
-
-    Returns:
-        Numeric price value or None if conversion fails
-    """
-
     if isinstance(value, (int, float)):
         return float(value)
 
@@ -383,16 +326,6 @@ def convert_to_numeric(value: Union[str, int, float, None]) -> Optional[float]:
 
 
 def preprocess_updated(updated: Any) -> Optional[datetime]:
-    """
-    Convert relative time strings to datetime objects.
-
-    Args:
-        updated: String indicating when the listing was updated (e.g., "3 hari lalu")
-
-    Returns:
-        Datetime object or None if conversion fails
-    """
-
     if updated is None or pd.isna(updated):
         return None
 
@@ -545,31 +478,6 @@ def preprocess_data(
     required_columns: List[str] = None,
     output_dir: str = "reports",
 ) -> pd.DataFrame:
-    """
-    Preprocess the housing data for model training:
-    - Convert values to appropriate types
-    - Extract and encode features
-    - Handle missing values
-    - Remove outliers and invalid entries
-    - Perform feature engineering
-    - Scale features (optional)
-    - Select features (optional)
-
-    Args:
-        df: Raw housing data DataFrame
-        validate: Whether to validate data before processing
-        scale_data: Whether to scale numeric features
-        feature_selection: Whether to perform feature selection
-        required_columns: List of columns that must be present
-        output_dir: Directory to save reports
-
-    Returns:
-        Preprocessed DataFrame ready for modeling
-
-    Raises:
-        DataValidationError: If validation fails and validate=True
-    """
-
     if required_columns is None:
         required_columns = ["price", "LT", "LB", "location", "bedroom", "bathroom"]
 
