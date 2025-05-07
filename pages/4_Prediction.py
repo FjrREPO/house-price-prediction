@@ -534,8 +534,8 @@ if submit_button or "last_prediction" in st.session_state:
     st.markdown(
         f"""
     <div class="confidence-indicator {confidence_class}">
-        <p><strong>Tingkat Kepercayaan: {confidence_text}</strong> ({confidence:.1%})</p>
-        <p>{'Prediksi ini memiliki tingkat kepercayaan tinggi berdasarkan data training.' if confidence > 0.85 else 
+        <p><strong>Tingkat Confidence: {confidence_text}</strong> ({confidence:.1%})</p>
+        <p>{'Prediksi ini memiliki tingkat confidence tinggi berdasarkan data training.' if confidence > 0.85 else 
             'Prediksi ini memiliki beberapa ketidakpastian, nilai mungkin berbeda dari kenyataan.' if confidence > 0.7 else
             'Prediksi ini memiliki ketidakpastian tinggi, nilai mungkin berbeda secara signifikan dari kenyataan.'}</p>
     </div>
