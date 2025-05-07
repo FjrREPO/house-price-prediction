@@ -26,7 +26,7 @@ def load_latest_preprocessed_data():
 
     timestamp = latest_file.split("_")[-1].split(".")[0]
 
-    metadata_file = f"processed_data/preprocessing_metadata_{timestamp}.json"
+    metadata_file = f"processed_data/preprocessing_metadata_20250506_140027.json"
     try:
         with open(metadata_file, "r") as f:
             metadata = json.load(f)
@@ -36,7 +36,7 @@ def load_latest_preprocessed_data():
 
     data = pd.read_csv(latest_file)
 
-    pickle_file = f"processed_data/preprocessed_data_{timestamp}.pkl"
+    pickle_file = f"processed_data/preprocessed_data_20250506_140027.pkl"
     pkl_data = None
     try:
         with open(pickle_file, "rb") as f:
