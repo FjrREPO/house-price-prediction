@@ -509,70 +509,39 @@ if submit_button or "last_prediction" in st.session_state:
 
     st.header("Hasil Prediksi")
 
-    col1, col2 = st.columns([2, 1])
+    st.markdown(
+        f"""
+    <div class="prediction-container">
+        <p class="prediction-label">Prediksi Harga Rumah</p>
+        <p class="prediction-value">{format_price(predicted_price)}</p>
+        <div class="prediction-label">Harga per m² Tanah: {format_price(predicted_price / input_data['LT'])}</div>
+        <div class="prediction-label">Harga per m² Bangunan: {format_price(predicted_price / input_data['LB'])}</div>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
 
-    with col1:
-        st.markdown(
-            f"""
-        <div class="prediction-container">
-            <p class="prediction-label">Prediksi Harga Rumah</p>
-            <p class="prediction-value">{format_price(predicted_price)}</p>
-            <div class="prediction-label">Harga per m² Tanah: {format_price(predicted_price / input_data['LT'])}</div>
-            <div class="prediction-label">Harga per m² Bangunan: {format_price(predicted_price / input_data['LB'])}</div>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
+    if confidence > 0.85:
+        confidence_class = "high-confidence"
+        confidence_text = "Tinggi"
+    elif confidence > 0.7:
+        confidence_class = "medium-confidence"
+        confidence_text = "Sedang"
+    else:
+        confidence_class = "low-confidence"
+        confidence_text = "Rendah"
 
-        if confidence > 0.85:
-            confidence_class = "high-confidence"
-            confidence_text = "Tinggi"
-        elif confidence > 0.7:
-            confidence_class = "medium-confidence"
-            confidence_text = "Sedang"
-        else:
-            confidence_class = "low-confidence"
-            confidence_text = "Rendah"
-
-        st.markdown(
-            f"""
-        <div class="confidence-indicator {confidence_class}">
-            <p><strong>Tingkat Kepercayaan: {confidence_text}</strong> ({confidence:.1%})</p>
-            <p>{'Prediksi ini memiliki tingkat kepercayaan tinggi berdasarkan data training.' if confidence > 0.85 else 
-                'Prediksi ini memiliki beberapa ketidakpastian, nilai mungkin berbeda dari kenyataan.' if confidence > 0.7 else
-                'Prediksi ini memiliki ketidakpastian tinggi, nilai mungkin berbeda secara signifikan dari kenyataan.'}</p>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
-    with col2:
-
-        if feature_importance:
-
-            all_features = dict(
-                sorted(feature_importance.items(), key=lambda x: x[1], reverse=True)
-            )
-
-            st.write("Feature Importance (Weight in Model):")
-            st.write(f"Bathroom: {feature_importance.get('bathroom', 'Not in model')}")
-            st.write(f"Carport: {feature_importance.get('carport', 'Not in model')}")
-
-            top_features = dict(
-                sorted(feature_importance.items(), key=lambda x: x[1], reverse=True)[:5]
-            )
-
-            fig = px.bar(
-                x=list(top_features.values()),
-                y=list(top_features.keys()),
-                orientation="h",
-                title="Faktor Utama Penentu Harga (Top 5)",
-                labels={"x": "Importance", "y": "Feature"},
-                color=list(top_features.values()),
-                color_continuous_scale=px.colors.sequential.Blues,
-            )
-            fig.update_layout(height=300, margin=dict(l=10, r=10, t=40, b=10))
-            st.plotly_chart(fig, use_container_width=True)
+    st.markdown(
+        f"""
+    <div class="confidence-indicator {confidence_class}">
+        <p><strong>Tingkat Kepercayaan: {confidence_text}</strong> ({confidence:.1%})</p>
+        <p>{'Prediksi ini memiliki tingkat kepercayaan tinggi berdasarkan data training.' if confidence > 0.85 else 
+            'Prediksi ini memiliki beberapa ketidakpastian, nilai mungkin berbeda dari kenyataan.' if confidence > 0.7 else
+            'Prediksi ini memiliki ketidakpastian tinggi, nilai mungkin berbeda secara signifikan dari kenyataan.'}</p>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
 
     if (
         metadata
