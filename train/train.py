@@ -103,19 +103,6 @@ def plot_feature_importance(
     X_test: pd.DataFrame,
     y_test: pd.Series,
 ) -> None:
-    """
-    Generate and save feature importance plots.
-
-    Args:
-        model: Trained RandomForestRegressor model
-        feature_names: List of feature names
-        X_test: Test feature data
-        y_test: Test target data
-
-    Returns:
-        None
-    """
-
     fig, axes = plt.subplots(2, 1, figsize=(12, 16))
 
     importances = model.feature_importances_
