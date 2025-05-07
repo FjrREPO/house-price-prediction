@@ -1,461 +1,572 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.express as px
-import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import seaborn as sns
+import json
 import os
-import re
+import datetime
+from io import BytesIO
+import pickle
+import glob
+from PIL import Image
 
 
-st.set_page_config(page_title="Preprocessing", page_icon="🏠", layout="wide")
+st.set_page_config(page_title="Data Preprocessing", page_icon="🧹", layout="wide")
 
 
-st.title("🏠 Preprocessing Data")
+def load_latest_preprocessed_data():
+    """Load the latest preprocessed data from processed_data directory."""
+    csv_files = glob.glob("processed_data/preprocessed_data_*.csv")
+    if not csv_files:
+        st.error("No preprocessed data found. Please run preprocessing first.")
+        return None, None, None
+
+    latest_file = max(csv_files, key=os.path.getctime)
+
+    timestamp = latest_file.split("_")[-1].split(".")[0]
+
+    metadata_file = f"processed_data/preprocessing_metadata_{timestamp}.json"
+    try:
+        with open(metadata_file, "r") as f:
+            metadata = json.load(f)
+    except FileNotFoundError:
+        metadata = {}
+        st.warning(f"Metadata file not found: {metadata_file}")
+
+    data = pd.read_csv(latest_file)
+
+    pickle_file = f"processed_data/preprocessed_data_{timestamp}.pkl"
+    pkl_data = None
+    try:
+        with open(pickle_file, "rb") as f:
+            pkl_data = pickle.load(f)
+    except FileNotFoundError:
+        st.warning(f"Pickle file not found: {pickle_file}")
+
+    return data, metadata, pkl_data
+
+
+def load_raw_data():
+    """
+    Function to load raw data if it exists, otherwise show a message.
+    """
+    try:
+        raw_data_path = "data/raw_data.csv"
+        if os.path.exists(raw_data_path):
+            return pd.read_csv(raw_data_path)
+        else:
+            st.info(
+                "Raw data file not found. Only preprocessed data will be displayed."
+            )
+            return None
+    except Exception as e:
+        st.error(f"Error loading raw data: {e}")
+        return None
+
+
+st.title("🧹 Data Preprocessing")
 st.markdown(
     """
-Bagian ini memvisualisasikan data perumahan di berbagai wilayah dengan 
-prediksi harga menggunakan model logika fuzzy. Jelajahi data melalui 
-berbagai grafik dan statistik.
+This page demonstrates the preprocessing steps applied to the real estate data from Yogyakarta area.
+The preprocessing transforms raw data into a format suitable for exploratory data analysis and modeling.
 """
 )
 
 
-@st.cache_data
-def load_data():
-    try:
-        data_path = os.path.join("dataset", "houses-cleaned.csv")
-        df = pd.read_csv(data_path)
-
-        def convert_to_numeric(value: str) -> float:
-            try:
-                value_numeric = re.sub(r"Rp\s?", "", value)
-
-                if "Miliar" in value_numeric:
-                    value_numeric = (
-                        float(re.sub(r"\s?Miliar", "", value_numeric).replace(",", "."))
-                        * 1e9
-                    )
-                elif "Juta" in value_numeric:
-                    value_numeric = (
-                        float(re.sub(r"\s?Juta", "", value_numeric).replace(",", "."))
-                        * 1e6
-                    )
-                else:
-                    return None
-                return value_numeric
-            except ValueError:
-                return None
-
-        df["price_numeric"] = df["price"].apply(convert_to_numeric)
-
-        def extract_area(area_str):
-            if isinstance(area_str, str):
-
-                match = re.search(r":\s*(\d+)\s*m²", area_str)
-                if match:
-                    return float(match.group(1))
-            return np.nan
-
-        df["LT_numeric"] = df["LT"].apply(extract_area)
-        df["LB_numeric"] = df["LB"].apply(extract_area)
-
-        def extract_location(loc_str):
-            if isinstance(loc_str, str):
-                parts = loc_str.split(",")
-                if len(parts) > 1:
-                    return parts[1].strip()
-                return parts[0].strip()
-            return "Tidak Diketahui"
-
-        df["kabupaten_kota"] = df["location"].apply(extract_location)
-
-        return df
-    except FileNotFoundError:
-        st.error(
-            "File data tidak ditemukan. Silakan periksa jalur ke houses-cleaned.csv"
-        )
-        return pd.DataFrame()
-    except Exception as e:
-        st.error(f"Kesalahan memuat data: {e}")
-
-        if "price" in locals():
-            st.write(f"Nilai bermasalah di kolom 'price'")
-        return pd.DataFrame()
-
-
-df = load_data()
-
-if not df.empty:
-
-    if df["price_numeric"].isna().any():
-        st.warning(
-            f"Ditemukan {df['price_numeric'].isna().sum()} baris dengan data harga tidak valid"
-        )
-
-        problem_rows = df[df["price_numeric"].isna()][["title", "price"]].head(5)
-        if not problem_rows.empty:
-            st.write("Contoh data harga bermasalah:")
-            st.write(problem_rows)
-
-    df = df.dropna(subset=["price_numeric", "LT_numeric", "LB_numeric"])
-
-    st.sidebar.header("Filter")
-
-    regions = ["Semua Wilayah"] + sorted(df["kabupaten_kota"].unique().tolist())
-    selected_region = st.sidebar.selectbox("Pilih Wilayah", regions)
-
-    min_price = int(df["price_numeric"].min())
-    max_price = int(df["price_numeric"].max())
-    price_range = st.sidebar.slider(
-        "Rentang Harga (dalam juta)",
-        min_value=min_price // 1_000_000,
-        max_value=max_price // 1_000_000,
-        value=(min_price // 1_000_000, max_price // 1_000_000),
-    )
-
-    bedrooms = sorted(df["bedroom"].unique().tolist())
-    selected_bedrooms = st.sidebar.multiselect(
-        "Jumlah Kamar Tidur", options=bedrooms, default=bedrooms
-    )
-
-    filtered_df = df.copy()
-
-    if selected_region != "Semua Wilayah":
-        filtered_df = filtered_df[filtered_df["kabupaten_kota"] == selected_region]
-
-    filtered_df = filtered_df[
-        (filtered_df["price_numeric"] >= price_range[0] * 1_000_000)
-        & (filtered_df["price_numeric"] <= price_range[1] * 1_000_000)
+tab1, tab2, tab3, tab4, tab5 = st.tabs(
+    [
+        "📊 Data Overview",
+        "🧼 Data Cleaning",
+        "🔍 Feature Engineering",
+        "📈 Data Exploration",
+        "⬇️ Download Data",
     ]
+)
 
-    if selected_bedrooms:
-        filtered_df = filtered_df[filtered_df["bedroom"].isin(selected_bedrooms)]
 
-    tab1, tab2, tab3 = st.tabs(["Ikhtisar", "Analisis Harga", "Fitur Properti"])
+data, metadata, pkl_data = load_latest_preprocessed_data()
+raw_data = load_raw_data()
 
-    with tab1:
-        st.header("Ikhtisar Data")
+with tab1:
+    st.header("Data Overview")
 
+    if data is not None:
+        st.subheader("Preprocessed Data Sample")
+        st.dataframe(data.head())
+
+        st.subheader("Data Information")
         col1, col2 = st.columns(2)
-
         with col1:
-            st.subheader("Statistik Ringkasan")
-
-            display_stats = (
-                filtered_df[
-                    [
-                        "price_numeric",
-                        "bedroom",
-                        "bathroom",
-                        "carport",
-                        "LT_numeric",
-                        "LB_numeric",
-                    ]
-                ]
-                .describe()
-                .round(2)
-            )
-            display_stats.columns = [
-                "Harga (Rp)",
-                "Kamar Tidur",
-                "Kamar Mandi",
-                "Carport",
-                "Luas Tanah (m²)",
-                "Luas Bangunan (m²)",
-            ]
-            st.dataframe(display_stats, use_container_width=True)
-
+            st.markdown(f"**Number of rows:** {data.shape[0]}")
+            st.markdown(f"**Number of columns:** {data.shape[1]}")
         with col2:
-            st.subheader("Distribusi Wilayah")
-            if selected_region == "Semua Wilayah":
-                region_counts = df["kabupaten_kota"].value_counts().reset_index()
-                region_counts.columns = ["Wilayah", "Jumlah"]
-                fig = px.pie(region_counts, values="Jumlah", names="Wilayah", hole=0.4)
-                fig.update_layout(height=400)
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info(f"Menampilkan data untuk {selected_region}")
-                st.metric("Jumlah Properti", filtered_df.shape[0])
-                avg_price = filtered_df["price_numeric"].mean()
-                if avg_price >= 1_000_000_000:
-                    st.metric(
-                        "Harga Rata-rata", f"Rp {avg_price/1_000_000_000:.2f} Miliar"
+            if metadata and "preprocessing_date" in metadata:
+                st.markdown(f"**Preprocessing date:** {metadata['preprocessing_date']}")
+
+            if raw_data is not None:
+                st.markdown(f"**Original data rows:** {raw_data.shape[0]}")
+                st.markdown(
+                    f"**Rows retained:** {data.shape[0]/raw_data.shape[0]*100:.1f}%"
+                )
+
+        st.subheader("Data Types")
+        dtype_df = pd.DataFrame(
+            {
+                "Column": data.columns,
+                "Data Type": data.dtypes.astype(str),
+                "Non-Null Count": data.count().values,
+                "Null Count": data.isnull().sum().values,
+                "Null Percentage": (data.isnull().sum() / len(data) * 100).values.round(
+                    2
+                ),
+            }
+        )
+        st.dataframe(dtype_df)
+
+        st.subheader("Statistical Summary")
+        st.write("Basic statistics for numerical columns:")
+        st.dataframe(data.describe())
+
+        st.subheader("Categorical Data Overview")
+        categorical_cols = data.select_dtypes(include=["object"]).columns
+        if len(categorical_cols) > 0:
+            selected_cat_column = st.selectbox(
+                "Select a categorical column to see its distribution:", categorical_cols
+            )
+
+            if selected_cat_column:
+                cat_counts = data[selected_cat_column].value_counts()
+
+                fig, ax = plt.subplots(figsize=(10, 6))
+                cat_counts.plot(kind="bar", ax=ax)
+                plt.title(f"Distribution of {selected_cat_column}")
+                plt.tight_layout()
+                st.pyplot(fig)
+
+                st.write("Value counts:")
+                st.dataframe(
+                    cat_counts.reset_index().rename(
+                        columns={
+                            "index": selected_cat_column,
+                            selected_cat_column: "Count",
+                        }
                     )
-                else:
-                    st.metric("Harga Rata-rata", f"Rp {avg_price/1_000_000:.2f} Juta")
+                )
+    else:
+        st.warning("No data available to display.")
 
-        st.subheader("Contoh Data")
-        display_cols = [
-            "title",
-            "price",
-            "bedroom",
-            "bathroom",
-            "carport",
-            "LT",
-            "LB",
-            "location",
+with tab2:
+    st.header("Data Cleaning Process")
+
+    st.subheader("Cleaning Steps Applied")
+
+    if metadata and "cleaning_steps" in metadata:
+        for idx, step in enumerate(metadata["cleaning_steps"], 1):
+            st.markdown(f"**Step {idx}:** {step['description']}")
+            if "details" in step:
+                st.markdown(f"*Details:* {step['details']}")
+            if "metrics" in step:
+                metrics_df = pd.DataFrame([step["metrics"]])
+                st.dataframe(metrics_df)
+    else:
+
+        cleaning_steps = [
+            {
+                "step": "Handle Missing Values",
+                "description": "Identified and handled missing values in the dataset by either imputation or removal.",
+            },
+            {
+                "step": "Remove Duplicates",
+                "description": "Removed duplicate entries from the dataset to ensure data integrity.",
+            },
+            {
+                "step": "Format Standardization",
+                "description": "Standardized the format of columns like price, area, and location.",
+            },
+            {
+                "step": "Outlier Detection",
+                "description": "Identified and handled outliers in numerical columns.",
+            },
+            {
+                "step": "Text Normalization",
+                "description": "Normalized text in categorical columns by removing special characters and standardizing case.",
+            },
         ]
-        st.dataframe(filtered_df[display_cols].head(10), use_container_width=True)
 
-    with tab2:
-        st.header("Analisis Harga")
+        for step in cleaning_steps:
+            st.markdown(f"**{step['step']}**")
+            st.markdown(step["description"])
 
+    if raw_data is not None and data is not None:
+        st.subheader("Before & After Cleaning Comparison")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**Raw Data**")
+            st.markdown(f"Rows: {raw_data.shape[0]}")
+            st.markdown(f"Columns: {raw_data.shape[1]}")
+            if not raw_data.empty:
+                st.markdown(f"Missing values: {raw_data.isnull().sum().sum()}")
+                has_duplicates = raw_data.duplicated().any()
+                st.markdown(f"Has duplicates: {'Yes' if has_duplicates else 'No'}")
+
+        with col2:
+            st.markdown("**Cleaned Data**")
+            st.markdown(f"Rows: {data.shape[0]}")
+            st.markdown(f"Columns: {data.shape[1]}")
+            if not data.empty:
+                st.markdown(f"Missing values: {data.isnull().sum().sum()}")
+                has_duplicates = data.duplicated().any()
+                st.markdown(f"Has duplicates: {'Yes' if has_duplicates else 'No'}")
+
+    st.subheader("Data Quality Metrics")
+
+    if data is not None:
         col1, col2 = st.columns(2)
 
         with col1:
-            st.subheader("Distribusi Harga")
-
-            use_billions = filtered_df["price_numeric"].mean() > 1_000_000_000
-
-            if use_billions:
-
-                filtered_df["price_display"] = (
-                    filtered_df["price_numeric"] / 1_000_000_000
-                )
-                price_label = "Harga (Miliar Rp)"
-            else:
-
-                filtered_df["price_display"] = filtered_df["price_numeric"] / 1_000_000
-                price_label = "Harga (Juta Rp)"
-
-            fig = px.histogram(
-                filtered_df,
-                x="price_display",
-                nbins=30,
-                title="Histogram Distribusi Harga",
-                labels={"price_display": price_label},
-            )
-            fig.update_layout(bargap=0.1)
-            st.plotly_chart(fig, use_container_width=True)
-
-        with col2:
-            st.subheader("Harga berdasarkan Wilayah")
-            if selected_region == "Semua Wilayah":
-
-                use_billions = df["price_numeric"].mean() > 1_000_000_000
-
-                if use_billions:
-
-                    df["price_display"] = df["price_numeric"] / 1_000_000_000
-                    price_label = "Harga (Miliar Rp)"
-                else:
-
-                    df["price_display"] = df["price_numeric"] / 1_000_000
-                    price_label = "Harga (Juta Rp)"
-
-                fig = px.box(
-                    df,
-                    x="kabupaten_kota",
-                    y="price_display",
-                    title="Distribusi Harga berdasarkan Wilayah",
-                    labels={"kabupaten_kota": "Wilayah", "price_display": price_label},
-                )
-                fig.update_layout(xaxis_tickangle=-45)
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info(f"Statistik harga untuk {selected_region}")
-                stats = filtered_df["price_numeric"].describe()
-
-                def format_price(price_value):
-                    if price_value >= 1_000_000_000:
-                        return f"Rp {price_value/1_000_000_000:.2f} Miliar"
-                    else:
-                        return f"Rp {price_value/1_000_000:.2f} Juta"
-
-                min_price = stats["min"]
-                max_price = stats["max"]
-                median_price = stats["50%"]
-
-                st.metric("Harga Minimum", format_price(min_price))
-                st.metric("Harga Maksimum", format_price(max_price))
-                st.metric("Harga Median", format_price(median_price))
-
-        st.subheader("Korelasi Harga dengan Fitur Properti")
-        corr_cols = [
-            "price_numeric",
-            "bedroom",
-            "bathroom",
-            "carport",
-            "LT_numeric",
-            "LB_numeric",
-        ]
-        corr_labels = [
-            "Harga",
-            "Kamar Tidur",
-            "Kamar Mandi",
-            "Carport",
-            "Luas Tanah",
-            "Luas Bangunan",
-        ]
-
-        corr_matrix = filtered_df[corr_cols].corr()
-        corr_matrix.columns = corr_labels
-        corr_matrix.index = corr_labels
-
-        fig, ax = plt.subplots(figsize=(10, 8))
-        sns.heatmap(
-            corr_matrix, annot=True, cmap="coolwarm", fmt=".2f", linewidths=0.5, ax=ax
-        )
-        st.pyplot(fig)
-
-    with tab3:
-        st.header("Analisis Fitur Properti")
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.subheader("Kamar Tidur vs. Harga")
-
-            use_billions = filtered_df["price_numeric"].mean() > 1_000_000_000
-
-            if use_billions:
-                y_axis = "price_display"
-                y_title = "Harga (Miliar Rp)"
-            else:
-                y_axis = "price_display"
-                y_title = "Harga (Juta Rp)"
-
-            fig = px.scatter(
-                filtered_df,
-                x="bedroom",
-                y=y_axis,
-                size="LB_numeric",
-                color="kabupaten_kota" if selected_region == "Semua Wilayah" else None,
-                hover_data=["bathroom", "LT_numeric", "title"],
-                title="Harga vs. Jumlah Kamar Tidur",
-                labels={
-                    "bedroom": "Kamar Tidur",
-                    y_axis: y_title,
-                    "LB_numeric": "Luas Bangunan (m²)",
-                },
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-        with col2:
-            st.subheader("Luas Bangunan vs. Luas Tanah")
-
-            use_billions = filtered_df["price_numeric"].mean() > 1_000_000_000
-
-            if use_billions:
-                color_axis = "price_display"
-                color_title = "Harga (Miliar Rp)"
-            else:
-                color_axis = "price_display"
-                color_title = "Harga (Juta Rp)"
-
-            fig = px.scatter(
-                filtered_df,
-                x="LT_numeric",
-                y="LB_numeric",
-                size="price_numeric",
-                color=color_axis,
-                hover_data=["bedroom", "bathroom", "kabupaten_kota", "title"],
-                title="Luas Bangunan vs. Luas Tanah",
-                labels={
-                    "LT_numeric": "Luas Tanah (m²)",
-                    "LB_numeric": "Luas Bangunan (m²)",
-                    color_axis: color_title,
-                },
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-        st.subheader("Distribusi Fitur")
-
-        feature_map = {
-            "bedroom": {"col": "bedroom", "title": "Kamar Tidur"},
-            "bathroom": {"col": "bathroom", "title": "Kamar Mandi"},
-            "carport": {"col": "carport", "title": "Carport"},
-            "land_area": {"col": "LT_numeric", "title": "Luas Tanah (m²)"},
-            "building_area": {"col": "LB_numeric", "title": "Luas Bangunan (m²)"},
-        }
-
-        selected_feature_key = st.selectbox(
-            "Pilih Fitur untuk Dianalisis",
-            options=list(feature_map.keys()),
-            format_func=lambda x: feature_map[x]["title"],
-        )
-
-        selected_feature = feature_map[selected_feature_key]["col"]
-        feature_title = feature_map[selected_feature_key]["title"]
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            fig = px.histogram(
-                filtered_df,
-                x=selected_feature,
-                title=f"Distribusi {feature_title}",
-                nbins=20,
-                labels={selected_feature: feature_title},
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-        with col2:
-            if selected_region == "Semua Wilayah":
-                fig = px.box(
-                    df,
-                    x="kabupaten_kota",
-                    y=selected_feature,
-                    title=f"{feature_title} berdasarkan Wilayah",
-                    labels={
-                        "kabupaten_kota": "Wilayah",
-                        selected_feature: feature_title,
-                    },
-                )
-                fig.update_layout(xaxis_tickangle=-45)
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info(f"Statistik {feature_title} untuk {selected_region}")
-                stats = filtered_df[selected_feature].describe()
-                cols = st.columns(4)
-                cols[0].metric("Min", f"{stats['min']:.1f}")
-                cols[1].metric("Max", f"{stats['max']:.1f}")
-                cols[2].metric("Median", f"{stats['50%']:.1f}")
-                cols[3].metric("Rata-rata", f"{stats['mean']:.1f}")
-
-        if "badges" in df.columns:
-            st.subheader("Tipe & Fitur Properti")
-
-            def extract_property_types(badges_str):
-                if isinstance(badges_str, str):
-                    return badges_str.split(", ")
-                return []
-
-            filtered_df["property_features"] = filtered_df["badges"].apply(
-                extract_property_types
-            )
-
-            property_types = {}
-            for features_list in filtered_df["property_features"]:
-                for feature in features_list:
-                    if feature in property_types:
-                        property_types[feature] += 1
-                    else:
-                        property_types[feature] = 1
-
-            property_df = pd.DataFrame(
+            st.markdown("**Completeness**")
+            completeness = (1 - data.isnull().sum() / len(data)) * 100
+            completeness_df = pd.DataFrame(
                 {
-                    "Feature": list(property_types.keys()),
-                    "Count": list(property_types.values()),
+                    "Column": completeness.index,
+                    "Completeness (%)": completeness.values.round(2),
                 }
-            ).sort_values(by="Count", ascending=False)
-
-            fig = px.bar(
-                property_df,
-                x="Feature",
-                y="Count",
-                title="Fitur Properti Populer",
-                labels={"Feature": "Fitur Properti", "Count": "Jumlah Properti"},
             )
-            fig.update_layout(xaxis_tickangle=-45)
-            st.plotly_chart(fig, use_container_width=True)
-else:
-    st.error(
-        "Tidak ada data tersedia. Mohon periksa apakah dataset telah dibersihkan dan disimpan dengan benar."
-    )
+            st.dataframe(completeness_df)
+
+        with col2:
+            st.markdown("**Uniqueness**")
+            uniqueness = (data.nunique() / len(data)) * 100
+            uniqueness_df = pd.DataFrame(
+                {
+                    "Column": uniqueness.index,
+                    "Uniqueness (%)": uniqueness.values.round(2),
+                }
+            )
+            st.dataframe(uniqueness_df)
+    else:
+        st.warning("No data available to calculate quality metrics.")
+
+with tab3:
+    st.header("Feature Engineering")
+
+    st.subheader("Feature Engineering Process")
+
+    engineered_features = []
+    if data is not None and raw_data is not None:
+        engineered_features = list(set(data.columns) - set(raw_data.columns))
+
+    if engineered_features:
+        st.markdown("The following features were created during preprocessing:")
+        for feature in engineered_features:
+            st.markdown(f"- **{feature}**")
+
+    feature_engineering_explanations = {
+        "price_per_m2_land": "Price per square meter of land, calculated as price/LT.",
+        "price_per_m2_building": "Price per square meter of building, calculated as price/LB.",
+        "building_efficiency": "Ratio of building area to land area (LB/LT).",
+        "total_rooms": "Sum of bedrooms and bathrooms.",
+        "min_area_needed": "Minimum area needed based on number of people (estimated from rooms).",
+        "listing_age_days": "Age of the listing in days from the latest update date.",
+        "room_density": "Number of rooms per building area (total_rooms/LB).",
+        "bathroom_bedroom_ratio": "Ratio of bathrooms to bedrooms.",
+        "fuzzy_area_quality": "Quality score based on land and building areas.",
+        "fuzzy_quality_score": "Comprehensive quality score based on multiple features.",
+        "efficiency_category": "Categorization based on building efficiency ratio.",
+        "kecamatan_encoded": "Encoded version of the kecamatan (district) categorical variable.",
+        "kabupaten_kota_encoded": "Encoded version of the kabupaten/kota (regency/city) categorical variable.",
+    }
+
+    st.subheader("Feature Engineering Explanations")
+
+    if data is not None:
+        actual_features = [
+            f for f in feature_engineering_explanations.keys() if f in data.columns
+        ]
+
+        if actual_features:
+            for feature in actual_features:
+                with st.expander(f"{feature}"):
+                    st.markdown(feature_engineering_explanations[feature])
+
+                    if data[feature].dtype in ["int64", "float64"]:
+                        fig, ax = plt.subplots(figsize=(10, 4))
+                        sns.histplot(data[feature].dropna(), kde=True, ax=ax)
+                        plt.title(f"Distribution of {feature}")
+                        st.pyplot(fig)
+                    elif (
+                        data[feature].dtype == "object" or data[feature].nunique() < 20
+                    ):
+                        fig, ax = plt.subplots(figsize=(10, 4))
+                        data[feature].value_counts().plot(kind="bar", ax=ax)
+                        plt.title(f"Distribution of {feature}")
+                        plt.xticks(rotation=45)
+                        plt.tight_layout()
+                        st.pyplot(fig)
+        else:
+            st.info("No engineered features found in the dataset.")
+    else:
+        st.warning("No data available to display feature engineering examples.")
+
+with tab4:
+    st.header("Data Exploration")
+
+    if data is not None:
+
+        st.subheader("Interactive Data Exploration")
+
+        st.markdown("### Filter Data")
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            min_price = int(data["price"].min())
+            max_price = int(data["price"].max())
+            price_range = st.slider(
+                "Price Range (Rp)", min_price, max_price, (min_price, max_price)
+            )
+
+        with col2:
+            min_land = int(data["LT"].min())
+            max_land = int(data["LT"].max())
+            land_range = st.slider(
+                "Land Area Range (m²)", min_land, max_land, (min_land, max_land)
+            )
+
+        with col3:
+            min_building = int(data["LB"].min())
+            max_building = int(data["LB"].max())
+            building_range = st.slider(
+                "Building Area Range (m²)",
+                min_building,
+                max_building,
+                (min_building, max_building),
+            )
+
+        col1, col2 = st.columns(2)
+        with col1:
+            bedroom_options = sorted(data["bedroom"].unique())
+            selected_bedrooms = st.multiselect(
+                "Number of Bedrooms", bedroom_options, default=bedroom_options
+            )
+
+        with col2:
+            bathroom_options = sorted(data["bathroom"].unique())
+            selected_bathrooms = st.multiselect(
+                "Number of Bathrooms", bathroom_options, default=bathroom_options
+            )
+
+        if "kecamatan" in data.columns:
+            location_options = sorted(data["kecamatan"].unique())
+            selected_locations = st.multiselect(
+                "Location (Kecamatan)",
+                location_options,
+                default=(
+                    location_options[:5]
+                    if len(location_options) > 5
+                    else location_options
+                ),
+            )
+        else:
+            selected_locations = None
+
+        filtered_data = data[
+            (data["price"] >= price_range[0])
+            & (data["price"] <= price_range[1])
+            & (data["LT"] >= land_range[0])
+            & (data["LT"] <= land_range[1])
+            & (data["LB"] >= building_range[0])
+            & (data["LB"] <= building_range[1])
+            & (data["bedroom"].isin(selected_bedrooms))
+            & (data["bathroom"].isin(selected_bathrooms))
+        ]
+
+        if selected_locations is not None:
+            filtered_data = filtered_data[
+                filtered_data["kecamatan"].isin(selected_locations)
+            ]
+
+        st.write(f"Showing {len(filtered_data)} properties matching your criteria")
+
+        with st.expander("View Filtered Data", expanded=False):
+            st.dataframe(filtered_data)
+
+        st.subheader("Data Visualizations")
+
+        viz_tab1, viz_tab2, viz_tab3 = st.tabs(
+            ["Scatter Plots", "Distributions", "Correlation Analysis"]
+        )
+
+        with viz_tab1:
+            st.markdown("### Scatter Plots")
+
+            x_options = [
+                col
+                for col in filtered_data.columns
+                if filtered_data[col].dtype in ["int64", "float64"]
+            ]
+            x_axis = st.selectbox(
+                "Select X-axis",
+                options=x_options,
+                index=x_options.index("LT") if "LT" in x_options else 0,
+            )
+
+            y_options = [
+                col
+                for col in filtered_data.columns
+                if filtered_data[col].dtype in ["int64", "float64"]
+            ]
+            y_axis = st.selectbox(
+                "Select Y-axis",
+                options=y_options,
+                index=y_options.index("price") if "price" in y_options else 0,
+            )
+
+            color_options = ["None"] + [
+                col
+                for col in filtered_data.columns
+                if filtered_data[col].nunique() < 20
+            ]
+            color_var = st.selectbox("Color by", options=color_options)
+
+            fig = plt.figure(figsize=(10, 6))
+            if color_var != "None":
+                scatter = sns.scatterplot(
+                    data=filtered_data, x=x_axis, y=y_axis, hue=color_var, alpha=0.7
+                )
+                plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
+            else:
+                scatter = sns.scatterplot(
+                    data=filtered_data, x=x_axis, y=y_axis, alpha=0.7
+                )
+
+            plt.title(f"{y_axis} vs {x_axis}")
+            plt.tight_layout()
+            st.pyplot(fig)
+
+        with viz_tab2:
+            st.markdown("### Distribution Plots")
+
+            dist_feature = st.selectbox(
+                "Select feature to visualize distribution",
+                options=[
+                    col
+                    for col in filtered_data.columns
+                    if filtered_data[col].dtype in ["int64", "float64"]
+                ],
+            )
+
+            fig = plt.figure(figsize=(10, 6))
+            sns.histplot(filtered_data[dist_feature].dropna(), kde=True)
+            plt.title(f"Distribution of {dist_feature}")
+            plt.tight_layout()
+            st.pyplot(fig)
+
+            st.markdown("### Statistical Summary")
+            st.dataframe(filtered_data[dist_feature].describe().to_frame())
+
+        with viz_tab3:
+            st.markdown("### Correlation Analysis")
+
+            numerical_cols = filtered_data.select_dtypes(
+                include=["int64", "float64"]
+            ).columns.tolist()
+
+            if len(numerical_cols) > 1:
+
+                correlation_matrix = filtered_data[numerical_cols].corr()
+
+                fig, ax = plt.subplots(figsize=(12, 10))
+                mask = np.triu(correlation_matrix)
+                heatmap = sns.heatmap(
+                    correlation_matrix,
+                    annot=True,
+                    mask=mask,
+                    cmap="coolwarm",
+                    linewidths=0.5,
+                    fmt=".2f",
+                    ax=ax,
+                )
+                plt.title("Correlation Matrix of Numerical Features")
+                plt.tight_layout()
+                st.pyplot(fig)
+
+                if "price" in numerical_cols:
+                    st.markdown("### Price Correlation Analysis")
+                    price_correlations = (
+                        correlation_matrix["price"]
+                        .sort_values(ascending=False)
+                        .drop("price")
+                    )
+
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    price_correlations.plot(kind="bar", ax=ax)
+                    plt.title("Features Correlation with Price")
+                    plt.ylabel("Correlation Coefficient")
+                    plt.tight_layout()
+                    st.pyplot(fig)
+            else:
+                st.info("Not enough numerical columns for correlation analysis.")
+    else:
+        st.warning("No data available for exploration.")
+
+with tab5:
+    st.header("Download Preprocessed Data")
+
+    if data is not None:
+        st.markdown(
+            """
+        You can download the preprocessed data for further analysis or model building.
+        The data is provided in CSV format and includes all the cleaned and engineered features.
+        """
+        )
+
+        csv = data.to_csv(index=False).encode("utf-8")
+
+        st.download_button(
+            label="Download Full Preprocessed Dataset (CSV)",
+            data=csv,
+            file_name="yogyakarta_real_estate_preprocessed.csv",
+            mime="text/csv",
+        )
+
+        st.markdown("### Custom Download Options")
+        st.markdown("Select specific columns to include in your download:")
+
+        selected_columns = st.multiselect(
+            "Select columns to include",
+            options=data.columns.tolist(),
+            default=["price", "LT", "LB", "bedroom", "bathroom"],
+        )
+
+        if selected_columns:
+            custom_csv = data[selected_columns].to_csv(index=False).encode("utf-8")
+            st.download_button(
+                label="Download Custom Dataset (CSV)",
+                data=custom_csv,
+                file_name="yogyakarta_real_estate_custom.csv",
+                mime="text/csv",
+            )
+
+        if metadata:
+            metadata_json = json.dumps(metadata, indent=4).encode("utf-8")
+            st.download_button(
+                label="Download Preprocessing Metadata (JSON)",
+                data=metadata_json,
+                file_name="preprocessing_metadata.json",
+                mime="application/json",
+            )
+    else:
+        st.warning("No data available to download.")
 
 
 st.markdown("---")
-st.markdown("Preprocessing section")
+st.markdown(
+    """
+**About this preprocessing page:**  
+This page was created to demonstrate the preprocessing workflow for Yogyakarta real estate data.  
+It includes data cleaning, feature engineering, and exploratory analysis tools to prepare data for machine learning models.
+"""
+)
