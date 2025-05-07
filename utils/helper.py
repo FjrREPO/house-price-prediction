@@ -453,15 +453,6 @@ def preprocess_carport(carport_str: Any) -> int:
 
 
 def preprocess_location(location):
-    """
-    Extract kecamatan (subdistrict) and kabupaten/kota (regency/city) from location string.
-
-    Args:
-        location: String containing location information
-
-    Returns:
-        Series with kecamatan and kabupaten_kota
-    """
     if pd.isna(location):
         return pd.Series([None, None])
     split_location = location.split(",")
